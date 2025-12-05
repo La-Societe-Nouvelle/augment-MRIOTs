@@ -388,33 +388,49 @@ vector.gfcf = rowSums(matrix.gfcf) %>%
   rownames_to_column('id') %>%
   separate(id,into = c('country','industry'),sep = "_",extra = 'merge')
 
+#In EU KLEMS, all countries have the same level of granularity
+
+depreciations.klems = get_depreciations_rate_klems()
+
+cfc_klems =
+  raw.klems %>%
+  filter(nace_r2_code %in% c('A','B',"C10-C12","C13-C15","C16-C18","C19","C20","C21","C22-C23","C24-C25","C26","C27","C28","C29-C30","C31-C33","D","E","F","G45","G46","G47",
+                             "H49","H50","H51","H52","H53","I","J58-J60","J61","J62-J63","K","L","M","N","O","P","Q86","Q87-Q88","R","S","T","U")) %>%
+  filter(year == !!year) %>%
+  select(nace_r2_code,geo_code,starts_with('I_'),starts_with('K_')) %>%
+  pivot_longer(-c(1:2),names_to = 'type') %>%
+  separate(type,c('flow','product'),sep = "_",extra = 'merge') %>%
+  filter(product != 'GFCF') %>%
+  mutate(product = case_when(product == 'Rstruc' ~ 'RStruc',
+                             T ~ product),
+         merge_code = case_when(nace_r2_code == 'C22-C23' ~ 'C22_C23',
+                                nace_r2_code == 'C24-C25' ~ 'C24_C25',
+                                nace_r2_code == 'C29-C30' ~ 'C29_C30',
+                                substr(nace_r2_code,1,1) == 'Q' ~ 'Q',
+                                nace_r2_code == 'J62-J63' ~ 'J62_J63',
+                                T ~ nace_r2_code)) %>%
+  left_join(depreciations.klems,by = c('merge_code' = 'Code','product' = 'product')) %>%
+  group_by(nace_r2_code,geo_code,product) %>%
+  summarise(CFC = sum(value,na.rm=T) * unique(rate))
+
 #When KLEMS products map to more than one EXIOBASE product, the values are disaggregated and distributed
 #among the different destinations using a proxy p is needed. We use total GFCF values from the existing EXIOBASE data as proxy values.
 #Södersten, Carl-Johan; Wood, Richard; Hertwich, Edgar G. . (2017). Environmental Impacts of Capital Formation. Journal of Industrial Ecology, (), –. doi:10.1111/jiec.12532
 
-depreciations.klems = get_depreciations_rate_klems()
+return(cfc_klems)
 
-concordance_nace.klems = get_concordance_nace.klems(classification = classification)
-
-concordance_product.klems = get_concordance_product.klems(classification = classification)
-
-capital_distribution.klems = model_capital_distribution.klems(raw.klems,vector.gfcf,concordance_nace.klems,concordance_product.klems)
-
-return(capital_distribution.klems)
 }
 
-capital_distribution_klems = get_capital_distribution_klems(2021,classification = 'FIGARO')
+
+
 
 un_cfc = get_un_stats_cfc(2021)
 
 
 get_cn_cfc_proxy = function()
 {
-file.chinese_2011_iot = tempfile()
 
-download.file("https://data.adb.org/media/1036/download", destfile = file.chinese_2011_iot, mode = "wb")
-
-matrix.chinese_2011_iot = read_xlsx(file.chinese_2011_iot,sheet = 'Use_82x64')
+matrix.chinese_2011_iot = read_xlsx('prc-sut-2011.xlsx',sheet = 'Use_82x64')
 
 cfc.chinese_2011_iot = matrix.chinese_2011_iot %>%
   filter(.[,2] == 'Consumption of Fixed Capital' | .[,3] == 'CPC/ISIC') %>%
@@ -447,12 +463,180 @@ cn_p51c_b1g = cfc.chinese_2011_iot %>% rename(P51C = value) %>%
   merge(b1g.chinese_2011_iot %>% rename(B1G = value)) %>%
   mutate(ratio = P51C / B1G)
 
+#Investment in "equipment" by industrial enterprises at or above "designated size"
+#Investment in "non-residential structures" by industrial enterprises at or above "designated size"
+#Capital stock in "equipment" by all industrial enterprises
+#Capital stock in "non-residential structures" by all industrial enterprises
+
 return(cn_p51c_b1g)
 
 }
 
 cn_cfc = get_cn_cfc_proxy() #To do : concordance table
 
+exchange_rate = function(df)
+{
+
+  oecd_rates = read.csv('https://sdmx.oecd.org/public/rest/data/OECD.SDD.NAD,DSD_NAMAIN10@DF_TABLE4,/A....EXC_A.......?startPeriod=2010&dimensionAtObservation=AllDimensions&format=csvfilewithlabels') %>%
+    select(REF_AREA,RATE = OBS_VALUE,TIME_PERIOD) %>%
+    group_by(TIME_PERIOD) %>%
+    mutate(RATE = RATE / RATE[REF_AREA == 'EU27_2020'])
+
+  df = df %>%
+    left_join(oecd_rates,by = c('REF_AREA','TIME_PERIOD')) %>%
+    mutate(OBS_VALUE = OBS_VALUE * RATE) %>%
+    select(!RATE)
+
+  return(df)
+
+}
+
+get_oecd_data = function(year,verbose = T)
+{
+  fixed_assets_sector = curl_download('https://sdmx.oecd.org/public/rest/data/OECD.SDD.NAD,DSD_NAMAIN10@DF_TABLE9A,/A.........V..?startPeriod=2010&endPeriod=2024&dimensionAtObservation=AllDimensions&format=csvfilewithlabels',
+                                      tempfile()) %>%
+    read.csv(check.names = F)
+
+  # CORR_FIGARO =
+  #   data.frame(ASSET = substr(unique(fixed_assets_sector$INSTR_ASSET),1,nchar(unique(fixed_assets_sector$INSTR_ASSET))-1)) %>%
+  #   mutate(REF = case_when(ASSET %in% c('N111','N112') ~ list('F'),
+  #                          ASSET == 'N1131' ~ list(c('C29','C30')),
+  #                          ASSET %in% c('N1132','N11321','N11322') ~ list('C26'),
+  #                          ASSET == 'N115' ~ list(c('A01','A02','A03')),
+  #                          ASSET == 'N1171' ~ list('M72'),
+  #                          ASSET == 'N1172' ~ list('B'),
+  #                          ASSET == 'N1173' ~ list('J62_63'),
+  #                          ASSET == 'N11731' ~ list('J62_63'),
+  #                          ASSET == 'N11732' ~ list('J62_63'),
+  #                          ASSET == 'N117' ~ list(c('M72','J62_63')),
+  #                          ASSET == 'N1174' ~ list(c('R90T92','R93')),
+  #                          ASSET == 'N1179' ~ list('TOTAL'),
+  #                          ASSET == 'N11' ~ list('TOTAL'),
+  #                          ASSET == 'N11K' ~ list('F'),
+  #                          ASSET == 'N11M' ~ list(c('C25','C26','C27','C28')),
+  #                          ASSET == 'N11O' ~ list(c('C25','C26','C27','C28'))))
+
+  filtered_fixed_asset = fixed_assets_sector %>%
+    select(REF_AREA,INSTR_ASSET,`Financial instruments and non-financial assets`,OBS_VALUE,ACTIVITY,TIME_PERIOD,CURRENCY) %>%
+    filter(TIME_PERIOD == year) %>%
+    mutate(ISO2 = countrycode(REF_AREA,'iso3c','iso2c',nomatch = NULL)) %>%
+    unite(industry, c('REF_AREA','ACTIVITY'),remove = F) %>%
+    group_by(industry) %>%
+    filter(any(INSTR_ASSET == 'N11N')) %>%
+    mutate(ASSET = substr(INSTR_ASSET,1,nchar(INSTR_ASSET)-1),
+           level = nchar(ASSET))
+    #select(industry,INSTR_ASSET,OBS_VALUE) %>% pivot_wider(names_from = industry,values_from = OBS_VALUE)
+
+  for(i in sort(unique(filtered_fixed_asset$level),decreasing = T))
+  {
+
+    asset_level = filtered_fixed_asset %>% filter(level == i) %>% pull(ASSET)
+
+    asset_aggregate = substr(asset_level,1,nchar(asset_level)-1) %>% unique()
+
+    to_delete = filtered_fixed_asset %>% group_by(industry) %>% filter(any(ASSET %in% asset_level)) %>% filter(ASSET %in% asset_aggregate) %>% ungroup() %>% distinct(industry,INSTR_ASSET)
+
+    filtered_fixed_asset = filtered_fixed_asset %>% filter(!paste0(industry,INSTR_ASSET) %in% paste0(to_delete$industry,to_delete$INSTR_ASSET))
+
+    if(verbose) print(i)
+  }
+
+  return(filtered_fixed_asset %>% exchange_rate())
+
+
+}
+
+get_pwt_data = function(year,verbose = T)
+{
+  pwt_data = curl_download("https://dataverse.nl/api/access/datafile/554105",destfile = tempfile()) %>% read_xlsx(sheet = 3)
+
+  formatted_pwt =
+    pwt_data %>%
+    filter(year == !!year) %>%
+    select(countrycode,cn,delta,cgdpe,cgdpo) %>%
+    reframe(country = countrycode(countrycode,'iso3c','iso2c',nomatch = NULL),
+            CFC = cn * delta,
+            CFC_VA = CFC / ((cgdpe + cgdpo) / 2))
+
+  return(formatted_pwt)
+
+  #cn capital stock million US$
+  #delta average depreciation rate of the capital stock
+  #cgdpe/cgdpo real gdp
+}
+
+format_domestic_capital_tables(year)
+{
+  figaro = import_figaro_io_table(year)
+
+  klems_data = get_capital_distribution_klems(year)
+
+  concordance_nace.klems = get_concordance_nace.klems(classification = classification)
+
+  concordance_product.klems = get_concordance_product.klems(classification = classification)
+
+  Gihat =  concordance_nace.klems %>%
+    mutate(value = 1) %>%
+    pivot_wider(names_from = 'industry',values_fill = 0) %>%
+    column_to_rownames('nace_r2_code') %>%
+    as.matrix() %>%
+    t()
+
+  Gphat = tibble(industry = colnames(Gi)) %>%
+    left_join(concordance_product.klems, by = "industry") %>%
+    arrange(industry) %>%
+    mutate(value = 1) %>%
+    pivot_wider(names_from = 'industry',values_fill = 0) %>%
+    filter(!is.na(product)) %>%
+    column_to_rownames('product') %>%
+    as.matrix()
+
+  pp = figaro %>% transmute(value = rowSums(across(contains('P51G'))))
+
+  pi = figaro %>% filter(grepl('W2',rownames(.))) %>% colSums() %>% subset(!grepl('P3|P5',names(.)))
+
+  for(i in unique(klems_data$geo_code))
+  {
+
+    klems_domestic =
+      klems_data %>%
+      ungroup() %>%
+      filter(geo_code == i) %>%
+      select(!geo_code) %>%
+      pivot_wider(names_from = nace_r2_code,values_from = CFC) %>%
+      arrange(product) %>%
+      column_to_rownames('product') %>%
+      as.matrix()
+
+    pp_country = pp %>% filter(substr(rownames(.),1,2) == i) %>% unlist()
+
+    pi_country = pi %>% subset(substr(names(.),1,2) == i)
+
+    pi_country[pi_country == 0] <- 0.1
+
+    Gp = solve(diag(x = as.numeric(Gphat %*% as.matrix(pp_country)))) %*% Gphat %*% diag(x = unlist(pp_country))
+
+    Gi = diag(x = unlist(pi_country)) %*% Gihat %*% solve(diag(x = as.numeric(t(as.matrix(pi_country)) %*% Gihat)))
+
+    K1 = t(Gp) %*% klems_domestic %*% t(Gi)
+
+    #Issue with Gp dim -> Miss one product and need reorder
+
+  }
+
+
+
+
+}
+
+
+# Alsamawi, A. et al. (2020-09-30), “Returns to intangible capital
+# in global value chains: New evidence on trends and policy
+# determinants”, OECD Trade Policy Papers, No. 240, OECD
+# Publishing, Paris.
+# http://dx.doi.org/10.1787/4cd06f19-en
+
+#Regression Poisson : value of assets = fixed effect asset class, industry, asset class x industry, asset class x income group
 # korea
 
 file.india_klems = tempfile()
