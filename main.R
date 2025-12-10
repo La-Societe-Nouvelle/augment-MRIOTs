@@ -1,4 +1,4 @@
-x = c("tidyverse","curl","DBI","arrow","bir","icarus","readxl","melodi","countrycode","httr2",'rvest','countrycode','httr')
+x = c("tidyverse","curl","DBI","arrow","bir","icarus","readxl","melodi","countrycode","httr2",'rvest','countrycode','httr','fixest')
 
 lapply(x,library,character.only = T)
 
@@ -30,8 +30,8 @@ get_concordance_nace.klems = function(classification)
                                 nace_r2_code == 'C31-C33' ~ list(c('C31_C32','C33')),
                                 nace_r2_code == 'D' ~ list('D35'),
                                 nace_r2_code == 'E' ~ list(c('E36','E37T39')),
-                                nace_r2_code == 'J58-J60' ~ list(c("J58",'J59_50')),
-                                nace_r2_code == 'J62-J63' ~ list('J63_63'),
+                                nace_r2_code == 'J58-J60' ~ list(c("J58",'J59_60')),
+                                nace_r2_code == 'J62-J63' ~ list('J62_63'),
                                 nace_r2_code == 'K' ~ list(c("K64","K65","K66")),
                                 nace_r2_code == 'M' ~ list(c("M69_70","M71","M72","M73","M74_75")),
                                 nace_r2_code == 'N' ~ list(c("N77","N78","N79","N80T82")),
@@ -58,6 +58,101 @@ get_concordance_nace.klems = function(classification)
 get_concordance_product.klems = function(classification)
 {
 
+  Ye_al_2021 = curl_download('https://github.com/yequanliang1993/capital-endogenized-input-output-model/raw/refs/heads/main/Global_version/data_input/CapitalProject_Concordances.xlsx',
+                             tempfile()) %>%
+    read_xlsx(sheet = 'Asset_Concordance') %>%
+    {.[-c(1,3:4),-c(1,3,4)]} %>%
+    `colnames<-`(c("product",.[1,-1])) %>%
+    {.[-1,]} %>%
+    select(contains("p")) %>%
+    filter(grepl("I_",product)) %>%
+    mutate(product = gsub('I_','',product)) %>%
+    column_to_rownames('product')
+
+  Bourgeois_al_2023 = read.csv('https://raw.githubusercontent.com/La-Societe-Nouvelle/Comparing_MRIOTs_in_R/refs/heads/main/TabPass%20Exio3%20to%20FIGARO.csv',sep = ";") %>%
+    filter(Pays == 'FR') %>%
+    select(vrai_code,starts_with('D')) %>%
+    pivot_longer(-1,names_to = 'raw_industry') %>%
+    mutate(figaro = case_when(raw_industry == "D01T02" ~ list(c("A01","A02")),
+                              raw_industry == "D03" ~ list("A03"),
+                              raw_industry %in% c('D05T06','D07T08','D09') ~ list('B'),
+                              raw_industry == "D10T12" ~ list("C10T12"),
+                              raw_industry == "D13T15" ~ list("C13T15"),
+                              raw_industry == "D16" ~ list("C16"),
+                              raw_industry == "D17T18" ~ list(c("C17","C18")),
+                              raw_industry =="D19" ~ list("C19"),
+                              raw_industry == "D20" ~ list("C20"),
+                              raw_industry == "D21" ~ list("C21"),
+                              raw_industry == "D22" ~ list("C22"),
+                              raw_industry == "D23" ~ list("C23"),
+                              raw_industry == "D24" ~ list("C24"),
+                              raw_industry == "D25" ~ list("C25"),
+                              raw_industry == "D26" ~ list("C26"),
+                              raw_industry == "D27" ~ list("C27"),
+                              raw_industry == "D28" ~ list("C28"),
+                              raw_industry == "D29" ~ list("C29"),
+                              raw_industry == "D30" ~ list("C30"),
+                              raw_industry == 'D31T33' ~ list(c("C31_32","C33")),
+                              raw_industry == "D35" ~ list("D35"),
+                              raw_industry == 'D36T39' ~ list(c("E36","E37T39")),
+                              raw_industry == 'D41T43' ~ list('F'),
+                              raw_industry == 'D45T47' ~ list(c("G45","G46","G47")),
+                              raw_industry == "D49" ~ list("H49"),
+                              raw_industry == "D50" ~ list("H50"),
+                              raw_industry == "D51" ~ list("H51"),
+                              raw_industry == "D52" ~ list("H52"),
+                              raw_industry == "D53" ~ list("H53"),
+                              raw_industry == 'D55T56' ~ list('I'),
+                              raw_industry == 'D58T60' ~ list(c("J58","J59_60")),
+                              raw_industry == 'D61' ~ list('J61'),
+                              raw_industry == 'D62T63' ~ list('J62_63'),
+                              raw_industry == 'D64T66' ~ list(c("K64","K65","K66")),
+                              raw_industry == 'D68' ~ list('L'),
+                              raw_industry == 'D69T75' ~ list(c("M69_70","M71","M72","M73","M74_75")),
+                              raw_industry == 'D77T82' ~ list(c("N77","N78","N79",'N80T82')),
+                              raw_industry == 'D84' ~ list('O84'),
+                              raw_industry == 'D85' ~ list('P85'),
+                              raw_industry == 'D86T88' ~ list(c("Q86","Q87_88")),
+                              raw_industry == 'D90T93' ~ list(c("R90T92","R93")),
+                              raw_industry == 'D94T96' ~ list(c("S94","S95","S96")),
+                              raw_industry == 'D97T98' ~ list('T'),
+                              raw_industry == 'D99' ~ list('U'))) %>%
+    unnest(figaro) %>%
+    select(!raw_industry) %>%
+    group_by(vrai_code,figaro) %>%
+    summarise(value = case_when(any(value) == 1 ~ 1,
+                                T ~ 0)) %>%
+    ungroup() %>%
+    pivot_wider(names_from = 'figaro',values_fill = 0) %>%
+    column_to_rownames('vrai_code') %>%
+    `rownames<-`(paste0("p",substring(rownames(.),2))) %>%
+    cbind(U = 0)
+
+  missing = colnames(Ye_al_2021) %>% subset(!colnames(Ye_al_2021) %in% rownames(Bourgeois_al_2023))
+
+  remove_2l = missing %>% subset(substr(missing,1,nchar(missing)-2) %in% rownames(Bourgeois_al_2023))
+
+  remove_3l = missing %>% subset((substr(missing,1,nchar(missing)-3) %in% rownames(Bourgeois_al_2023)) & (!missing %in% remove_2l))
+
+  colnames(Ye_al_2021) = case_when(colnames(Ye_al_2021) %in% remove_2l ~ substr(colnames(Ye_al_2021),1,nchar(colnames(Ye_al_2021))-2),
+                                   colnames(Ye_al_2021) %in% remove_3l ~ substr(colnames(Ye_al_2021),1,nchar(colnames(Ye_al_2021))-3),
+                                   colnames(Ye_al_2021) %in% c("p24.e","p24.f","p24.g","p24.h","p24.i") ~ "p24.d",
+                                   colnames(Ye_al_2021) == 'p26.w.1' ~ 'p26.a.w',
+                                   T ~ colnames(Ye_al_2021))
+
+  Ye_al_formatted = sapply(unique(colnames(Ye_al_2021)), function(x) {
+    cols <- which(colnames(Ye_al_2021) == x)
+    apply(Ye_al_2021[, cols, drop = FALSE], 1, max)
+  }) %>% as.data.frame()
+
+  Ye_al_formatted[] <- lapply(Ye_al_formatted, function(x) as.numeric(x))
+
+  concordance_product.klems = (as.matrix(Ye_al_formatted) %*% as.matrix(Bourgeois_al_2023)) %>%
+    {(. > 0) * 1}
+
+  return(concordance_product.klems)
+
+
   if(toupper(classification) == 'FIGARO')
   {
 
@@ -65,15 +160,14 @@ get_concordance_product.klems = function(classification)
   product = product <- c("CT", "Cult", "IT", "OCon", "OIPP", "OMach",
                          "RD", "Rstruc", "Soft_DB", "TraEq"),
   industry = case_when(
-    product == "CT"       ~ list("C26"),                                           # Communications equipment
-    product == "Cult"     ~ list(c("A01", "A02", "A03")),                         # Cultivated assets
-    product == "IT"       ~ list("C26"),                                           # Computing equipment
-    product == "OCon"     ~ list("F"),                                             # Total non-residential investment
-    product == "OIPP"     ~ list(c("J58", "J59_60", "J61", "J62_63", "M69_70",
-                                   "M71", "M72", "M73", "M74_75", "R90T92", "R93")), # Other IPP assets
-    product == "OMach"    ~ list(c("C26", "C27", "C28")),                         # Other Machinery and Equipment
+    product == "CT"       ~ list("C26"),                                           # Communications equipment #Telecommunications equipment
+    product == "Cult"     ~ list(c("A01", "A02", "A03","C10T12")), #+Wine                        # Cultivated assets #Cultivated biological resources
+    product == "IT"       ~ list("C26"),                                           # Computing equipment #Computer hardware
+    product == "OCon"     ~ list("F"),                                             # Total non-residential investment #Other buildings and structures
+    product == "OIPP"     ~ list(c("J58", "J59_60","R90T92")), # Other IPP assets #Entertain.& Artistic Originals
+    product == "OMach"    ~ list(c("C26", "C27", "C28")),                         # Other Machinery and Equipment #Other machinery and equip. &weapons
     product == "RD"       ~ list("M72"),                                           # Research and development
-    product == "Rstruc"   ~ list("F"),                                             # Residential structures
+    product == "Rstruc"   ~ list("F"),                                             # Residential structures #Dwellings
     product == "Soft_DB"  ~ list("J62_63"),                                        # Computer software and databases
     product == "TraEq"    ~ list(c("C29", "C30")),                                 # Transport equipment
     TRUE ~ list(NA_character_)
@@ -372,9 +466,18 @@ get_depreciations_rate_klems = function(update = F,verbose = T)
   return(depreciations.klems)
 }
 
+
 get_capital_distribution_klems = function(year,classification,verbose = T)
 {
+
+klems_industries = c('A','B',"C10-C12","C13-C15","C16-C18","C19","C20","C21","C22-C23","C24-C25","C26","C27","C28","C29-C30","C31-C33","D","E","F","G45","G46","G47",
+                     "H49","H50","H51","H52","H53","I","J58-J60","J61","J62-J63","K","L","M","N","O","P","Q86","Q87-Q88","R","S","T","U")
+
 raw.klems = read.csv("https://www.dropbox.com/s/sp2p4m86et66nfg/capital%20accounts.csv?dl=1")
+
+va_klems = read.csv("https://www.dropbox.com/s/nkz7mdp0onken1j/national%20accounts.csv?dl=1") %>%
+  filter(year == !!year & nace_r2_code %in% klems_industries) %>%
+  select(nace_r2_code,geo_code,VA_CP)
 
 meta.klems = curl_download("https://www.dropbox.com/s/srsn4zdb1wta27t/Variable-List-2023.xlsx?dl=1",tempfile()) %>%
   read_xlsx()
@@ -392,10 +495,15 @@ vector.gfcf = rowSums(matrix.gfcf) %>%
 
 depreciations.klems = get_depreciations_rate_klems()
 
+oecd_rates = read.csv(paste0('https://sdmx.oecd.org/public/rest/data/OECD.SDD.NAD,DSD_NAMAIN10@DF_TABLE4,/A....EXC_A.......?startPeriod=',
+                             year,'&endPeriod=',year,'&dimensionAtObservation=AllDimensions&format=csvfilewithlabels')) %>%
+  select(REF_AREA,RATE = OBS_VALUE,TIME_PERIOD) %>%
+  reframe(EXCH_RATE = RATE / RATE[REF_AREA == 'EU27_2020'],
+          ISO2 = countrycode(REF_AREA,"iso3c","iso2c",nomatch = NULL))
+
 cfc_klems =
   raw.klems %>%
-  filter(nace_r2_code %in% c('A','B',"C10-C12","C13-C15","C16-C18","C19","C20","C21","C22-C23","C24-C25","C26","C27","C28","C29-C30","C31-C33","D","E","F","G45","G46","G47",
-                             "H49","H50","H51","H52","H53","I","J58-J60","J61","J62-J63","K","L","M","N","O","P","Q86","Q87-Q88","R","S","T","U")) %>%
+  filter(nace_r2_code %in% klems_industries) %>%
   filter(year == !!year) %>%
   select(nace_r2_code,geo_code,starts_with('I_'),starts_with('K_')) %>%
   pivot_longer(-c(1:2),names_to = 'type') %>%
@@ -411,7 +519,11 @@ cfc_klems =
                                 T ~ nace_r2_code)) %>%
   left_join(depreciations.klems,by = c('merge_code' = 'Code','product' = 'product')) %>%
   group_by(nace_r2_code,geo_code,product) %>%
-  summarise(CFC = sum(value,na.rm=T) * unique(rate))
+  summarise(CFC = sum(value,na.rm=T) * unique(rate),.groups = 'drop') %>%
+  left_join(va_klems,by = c('nace_r2_code','geo_code')) %>%
+  left_join(oecd_rates,by = c('geo_code' = 'ISO2')) %>%
+  mutate(CFC = CFC / EXCH_RATE,
+         VA_CP = VA_CP / EXCH_RATE)
 
 #When KLEMS products map to more than one EXIOBASE product, the values are disaggregated and distributed
 #among the different destinations using a proxy p is needed. We use total GFCF values from the existing EXIOBASE data as proxy values.
@@ -420,9 +532,6 @@ cfc_klems =
 return(cfc_klems)
 
 }
-
-
-
 
 un_cfc = get_un_stats_cfc(2021)
 
@@ -484,7 +593,7 @@ exchange_rate = function(df)
 
   df = df %>%
     left_join(oecd_rates,by = c('REF_AREA','TIME_PERIOD')) %>%
-    mutate(OBS_VALUE = OBS_VALUE * RATE) %>%
+    mutate(OBS_VALUE = OBS_VALUE / RATE) %>%
     select(!RATE)
 
   return(df)
@@ -553,8 +662,9 @@ get_pwt_data = function(year,verbose = T)
   formatted_pwt =
     pwt_data %>%
     filter(year == !!year) %>%
-    select(countrycode,cn,delta,cgdpe,cgdpo) %>%
+    select(countrycode,cn,delta,cgdpe,cgdpo,pop) %>%
     reframe(country = countrycode(countrycode,'iso3c','iso2c',nomatch = NULL),
+            GDP_CAPITA = ((cgdpe + cgdpo) / 2) / pop,
             CFC = cn * delta,
             CFC_VA = CFC / ((cgdpe + cgdpo) / 2))
 
@@ -565,7 +675,117 @@ get_pwt_data = function(year,verbose = T)
   #cgdpe/cgdpo real gdp
 }
 
-format_domestic_capital_tables(year)
+depreciation_oecd = function(country_data_oecd,DEPR_RATES)
+{
+
+  if(length(unique(country_data_oecd$Type)) == 2)
+  {
+
+    country_data_oecd = country_data_oecd %>%
+      group_by(ACTIVITY,ASSET,level) %>%
+      summarise(OBS_VALUE = unique(OBS_VALUE[Type == 'GROSS'] - OBS_VALUE[Type == 'NET']),.groups = 'drop')
+
+  }else{
+
+    country_data_oecd = country_data_oecd %>%
+      mutate(REF = case_when(ACTIVITY %in% DEPR_RATES$industry ~ DEPR_RATES$Code[match(ACTIVITY,DEPR_RATES$industry)],
+                             ACTIVITY %in% DEPR_RATES$Code ~ DEPR_RATES$Code[match(ACTIVITY,DEPR_RATES$Code)],
+                             ACTIVITY == '_T' ~ 'TOT',
+                             ACTIVITY == 'C16T18' ~ 'C16-C18',
+                             ACTIVITY == 'C24_25' ~ 'C24_C25',
+                             ACTIVITY == 'C29_30' ~ 'C29_C30',
+                             ACTIVITY == 'C31T33' ~ 'C31-C33',
+                             ACTIVITY == 'J58T60' ~ 'J58-J60',
+                             ACTIVITY %in% c('M69T71','M73_75') ~ 'M')) %>%
+      mutate(RATE = DEPR_RATES$rate[match(paste0(REF,ASSET),paste0(DEPR_RATES$Code,DEPR_RATES$ASSET))]) %>%
+      mutate(OBS_VALUE = pmax(OBS_VALUE * RATE,0)) %>%
+      select(!c(RATE,REF))
+  }
+
+  return(country_data_oecd)
+
+
+}
+
+non_financial_asset_tree = function()
+{
+
+  matrix(c(
+    'N11','N11K','N111','','',
+    'N11','N11K','N112','','',
+    'N11','N11M','N113','N1131','',
+    'N11','N11M','N113','N1132','N11321',
+    'N11','N11M','N113','N1132','N11322',
+    'N11','N11M','N114','','',
+    'N11','N11M','N11O','','',
+    'N11','N115','','','',
+    'N11','N117','N1171','','',
+    'N11','N117','N1172','','',
+    'N11','N117','N1173','N11731','',
+    'N11','N117','N1173','N11732','',
+    'N11','N117','N1174','','',
+    'N11','N117','N1179','',''
+  ),
+  ncol = 5,
+  byrow=T) %>%
+    as.data.frame() %>%
+    setNames(c(1:5))
+
+  #N11
+  #   N11K
+  #       N111
+  #       N112
+  #   N11M
+  #       N113
+  #           N1131
+  #           N1132
+  #                 N11321
+  #                 N11322
+  #       N114
+  #       N11O
+  #   N115
+  #   N117
+  #       N1171
+  #       N1172
+  #       N1173
+  #           N11731
+  #           N11732
+  #       N1174
+  #       N1179
+
+}
+
+ras_capital_use = function(K1,pp_country,pi_country,min_error,n_iter,verbose)
+{
+
+  pi_country_adj = pi_country / sum(pi_country) * sum(pp_country)
+
+  for(iter in 1:n_iter)
+  {
+
+    r = pp_country / rowSums(K) ; r[!is.finite(r)] = 1
+
+    K = diag(x = r) %*% K
+
+    s = pi_country_adj / colSums(K) ; s[!is.finite(s)] = 1
+
+    K = K %*% diag(x = s)
+
+    accuracy = max(abs(c(r,s)-1))
+
+    if(accuracy < min_error & verbose) message('Maximum error for country ',i,' for round ',iter," : ",accuracy)
+
+    if(accuracy < min_error) break
+
+  }
+
+  return(K)
+
+}
+
+year = 2018 ; classification = 'FIGARO' ; n_iter = 100 ; min_error = 1e-3 ; verbose = T
+
+format_domestic_capital_tables(year,classification = 'FIGARO',n_iter = 100,min_error = 1e-3,verbose = T)
 {
   figaro = import_figaro_io_table(year)
 
@@ -573,7 +793,10 @@ format_domestic_capital_tables(year)
 
   concordance_nace.klems = get_concordance_nace.klems(classification = classification)
 
-  concordance_product.klems = get_concordance_product.klems(classification = classification)
+  concordance_product.klems = Gphat = get_concordance_product.klems(classification = classification) %>%
+    as.data.frame() %>%
+    arrange(row.names(.)) %>%
+    as.matrix()
 
   Gihat =  concordance_nace.klems %>%
     mutate(value = 1) %>%
@@ -582,18 +805,39 @@ format_domestic_capital_tables(year)
     as.matrix() %>%
     t()
 
-  Gphat = tibble(industry = colnames(Gi)) %>%
-    left_join(concordance_product.klems, by = "industry") %>%
-    arrange(industry) %>%
-    mutate(value = 1) %>%
-    pivot_wider(names_from = 'industry',values_fill = 0) %>%
-    filter(!is.na(product)) %>%
-    column_to_rownames('product') %>%
-    as.matrix()
-
   pp = figaro %>% transmute(value = rowSums(across(contains('P51G'))))
 
-  pi = figaro %>% filter(grepl('W2',rownames(.))) %>% colSums() %>% subset(!grepl('P3|P5',names(.)))
+  get_cfc_klems = function(figaro,klems_data,year,verbose)
+  {
+
+    value_added_figaro = figaro %>%
+      filter(grepl('W2',rownames(.))) %>%
+      colSums() %>%
+      subset(!grepl('P3|P5',names(.))) %>%
+      data.frame(value_added = .) %>%
+      rownames_to_column('id') %>%
+      separate(id,c('country','industry'),extra = 'merge',sep = "_")
+
+
+    cfc_rates_klems = klems_data %>%
+      filter(geo_code %in% countries) %>%
+      group_by(geo_code,nace_r2_code) %>%
+      summarise(CFC = pmax(pmin(sum(CFC) / unique(VA_CP),1),0),.groups = 'drop') %>%
+      left_join(concordance_nace.klems,by = 'nace_r2_code',relationship = "many-to-many") %>%
+      left_join(value_added_figaro,by = c('geo_code' = 'country','industry' = 'industry')) %>%
+      reframe(country = geo_code,industry,CFC = CFC * value_added)
+
+    return(cfc_rates_klems)
+
+  }
+
+  CFC_KLEMS = get_cfc_klems(figaro,klems_data,year,verbose)
+
+  pi = CFC_KLEMS$CFC %>% `names<-`(paste0(CFC_KLEMS$country,"_",CFC_KLEMS$industry))
+
+  # pi = figaro %>% filter(grepl('W2',rownames(.))) %>% colSums() %>% subset(!grepl('P3|P5',names(.)))
+
+  storage_K = list()
 
   for(i in unique(klems_data$geo_code))
   {
@@ -606,11 +850,16 @@ format_domestic_capital_tables(year)
       pivot_wider(names_from = nace_r2_code,values_from = CFC) %>%
       arrange(product) %>%
       column_to_rownames('product') %>%
+      arrange(rownames(.)) %>%
       as.matrix()
 
-    pp_country = pp %>% filter(substr(rownames(.),1,2) == i) %>% unlist()
+    figaro_ref = ifelse(i == 'UK','GB',i)
 
-    pi_country = pi %>% subset(substr(names(.),1,2) == i)
+    if(!figaro_ref %in% unique(substr(colnames(figaro),1,2))) next
+
+    pp_country = pp %>% filter(substr(rownames(.),1,2) == figaro_ref & substr(rownames(.),1,5) != 'FIGW1') %>% unlist()
+
+    pi_country = pi %>% subset(substr(names(.),1,2) == figaro_ref & substr(names(.),1,5) != 'FIGW1')
 
     pi_country[pi_country == 0] <- 0.1
 
@@ -618,14 +867,341 @@ format_domestic_capital_tables(year)
 
     Gi = diag(x = unlist(pi_country)) %*% Gihat %*% solve(diag(x = as.numeric(t(as.matrix(pi_country)) %*% Gihat)))
 
-    K1 = t(Gp) %*% klems_domestic %*% t(Gi)
+    K1 = K = t(Gp) %*% klems_domestic %*% t(Gi)
 
-    #Issue with Gp dim -> Miss one product and need reorder
+    K = ras_capital_use(K1,pp_country,pi_country,min_error,n_iter,verbose)
+
+    storage_K[[figaro_ref]] = K
 
   }
 
+  oecd_data = get_oecd_data(year,verbose) %>% ungroup()
+
+  supplementary_oecd = unique(oecd_data$ISO2) %>% subset(!. %in% names(storage_K) & . %in% unique(substr(colnames(figaro),1,2)))
+
+  #Build up the correspondence tables between OECD - KLEMS - FIGARO
+
+  OECD_TO_KLEMS =
+    oecd_data %>%
+    filter(ISO2 %in% supplementary_oecd) %>%
+    mutate(`Financial instruments and non-financial assets` = `Financial instruments and non-financial assets` %>% gsub(', net','',.) %>% gsub(', gross','',.)) %>%
+    distinct(ASSET,`Financial instruments and non-financial assets`) %>%
+    mutate(KLEMS = case_when(ASSET == 'N111' ~ list('RStruc'),
+                             ASSET == 'N112' ~ list('OCon'),
+                             ASSET == 'N1131' ~ list('TraEq'),
+                             ASSET == 'N11321' ~ list('IT'),
+                             ASSET == 'N11322' ~ list('CT'),
+                             ASSET == 'N115' ~ list('Cult'),
+                             ASSET %in% c('N1171','N1172') ~ list('RD'),
+                             ASSET %in% c('N1173','N11731','N11732') ~ list('Soft_DB'), #Software = 58 & 62 #Database = 63
+                             ASSET %in% c('N1179','N1174') ~ list('OIPP'),
+                             ASSET == 'N11K' ~ list(c('RStruc','OCon')),
+                             ASSET %in% c('N11M','N11O') ~ list('OMach'))) %>% #The reference are straightforwardly taken from KLEMS documentation (Bontadini et al. 02/2023)
+    select(!`Financial instruments and non-financial assets`) %>%
+    unnest(KLEMS) %>%
+    distinct()
+
+  OECD_KLEMS_CORRESPONDENCE =
+    OECD_TO_KLEMS %>%
+    left_join(Gphat %>% as.data.frame() %>% rownames_to_column('KLEMS'),by = 'KLEMS') %>%
+    group_by(ASSET) %>%
+    summarise(across(-KLEMS, ~ pmin(sum(.), 1)),.groups = 'drop')
+
+  klems_depreciations_rate = get_depreciations_rate_klems() %>%
+    left_join(concordance_nace.klems %>% mutate(nace_r2_code = case_when(nace_r2_code %in% c('C22-C23','C24-C25','C29-C30','J62-J63') ~ gsub("-","_",nace_r2_code),
+                                                                         nace_r2_code %in% c('Q86','Q87-Q88') ~ 'Q',
+                                                                         T ~ nace_r2_code)),by = c('Code' = 'nace_r2_code'),
+              relationship = "many-to-many")
+
+  DEPR_RATES = OECD_TO_KLEMS %>%
+    left_join(klems_depreciations_rate,by = c('KLEMS' = 'product'),relationship = "many-to-many")
+
+    # mutate(case_when(KLEMS %in% c('IT','CT') ~ S94 = S96 = 0,
+    #                  KLEMS == 'TraEq' ~ G46=G47=0) -> To work ON
+
+  oecd_activity_correspondance = data.frame(FIGARO = concordance_nace.klems$industry) %>%
+      mutate(Option1 = case_when(FIGARO %in% c('C16','C17','C18') ~ 'C16T18',
+                                 FIGARO %in% c('C24','C25') ~ 'C24_25',
+                                 FIGARO %in% c('C29','C30') ~ 'C29_30',
+                                 FIGARO %in% c('C31_C32','C33') ~ 'C31T33',
+                                 FIGARO %in% c('J58','J59_60') ~ 'J58T60',
+                                 FIGARO %in% c('M69_70','M71') ~ 'M69T71',
+                                 FIGARO %in% c('M73','M74_75') ~ 'M73_75',
+                                 T ~ ''),
+             Option2 = substr(FIGARO,1,1),
+             Option3 = '_T') %>%
+    mutate(Option0 = FIGARO)
+
+  # AUS  CAN  GRC  KOR  NOR  RUS
+  # 176  691 1700   86  811   25
+
+  for(i in supplementary_oecd %>% subset(!. %in% c('KR','RU'))) #For Korea and Russia, there is no information on sectoral x product level
+  {
+
+    #Filter country-specific OECD data
+
+    country_data_oecd =
+      oecd_data %>%
+      filter(ISO2 == i) %>%
+      mutate(Type = case_when(grepl(", net",`Financial instruments and non-financial assets`) ~ 'NET',
+                              T ~ 'GROSS')) %>%
+      mutate(ACTIVITY = case_when(ACTIVITY == 'O' ~ 'O84',
+                                  ACTIVITY == 'P' ~ 'P85',
+                                  ACTIVITY == 'D' ~ 'D35',
+                                  ACTIVITY == 'C31_32' ~ 'C31_C32',
+                                  T ~ ACTIVITY)) %>%
+      filter(ACTIVITY %in% unique(unlist(oecd_activity_correspondance))) %>%
+      depreciation_oecd(.,DEPR_RATES = DEPR_RATES)
+
+    #Match the OECD column 'ACTIVITY' with FIGARO classification
+
+    reference_activity_country = oecd_activity_correspondance %>%
+      mutate(OECD = case_when(Option0 %in% country_data_oecd$ACTIVITY ~ Option0,
+                              Option1 %in% country_data_oecd$ACTIVITY ~ Option1,
+                              Option2 %in% country_data_oecd$ACTIVITY ~ Option2,
+                              Option3 %in% country_data_oecd$ACTIVITY ~ Option3))
+
+    country_data_oecd = country_data_oecd  %>%
+      select(ACTIVITY,ASSET,OBS_VALUE,level)
+
+    delete_list = c()
+
+    CPATNF = non_financial_asset_tree()
+
+    oecd_value_added = read.csv(paste0('https://sdmx.oecd.org/public/rest/data/OECD.SDD.NAD,DSD_NAMAIN10@DF_TABLE6,2.0/A....B1G....XDC.V..?startPeriod=',
+                                       year,'&endPeriod=',year,'&dimensionAtObservation=AllDimensions&format=csvfilewithlabels')) %>%
+      select(REF_AREA,ACTIVITY,VALUE_ADDED = OBS_VALUE) %>%
+      mutate(ISO2 = countrycode(REF_AREA,'iso3c','iso2c',nomatch = NULL))
+
+    #Avoid double counting applying crosswalk
+
+    for(j in ncol(CPATNF):1)
+    {
+      available = CPATNF[,j] %>% subset(. %in% country_data_oecd$ASSET)
+      linked = CPATNF[,j] %>% subset(substr(.,1,nchar(CPATNF[,j])-1) %in% substr(available,1,nchar(available)-1)) %>% subset(!. %in% available)
+
+      to_delete = CPATNF[CPATNF[,j] %in% c(available,linked),(1:5)<j] %>% unlist() %>% unique()
+
+      delete_list = rbind(delete_list,
+                          country_data_oecd %>%
+                            group_by(ACTIVITY) %>%
+                            filter(any(ASSET %in% available)) %>%
+                            filter(ASSET %in% to_delete) %>%
+                            select(ACTIVITY,ASSET) %>%
+                            ungroup()) %>%
+        distinct()
+    }
+
+    #Rotating the temporary table
+
+    formatted_country_data_oecd =
+      country_data_oecd %>%
+      filter(ACTIVITY %in% reference_activity_country$OECD) %>%
+      filter(!paste0(ACTIVITY,ASSET) %in% paste0(delete_list$ACTIVITY,delete_list$ASSET)) %>%
+      arrange(ACTIVITY,ASSET) %>%
+      select(!level) %>%
+      pivot_wider(names_from = ACTIVITY,values_from = OBS_VALUE,values_fill = 0) %>%
+      column_to_rownames('ASSET')
+
+    get_cfc_oecd = function(initial_country_data_oecd,oecd_value_added)
+    {
+
+      data.frame(CFC = colSums(initial_country_data_oecd,na.rm = T)) %>%
+        rownames_to_column()
+
+      oecd_value_added %>%
+        filter(ISO2 == i)
+
+      #Group by OECD COLS, rejoin, left_join value_added, compute the ratio
+
+      countries = sub("_.*$", "", rownames(figaro)) %>% unique() %>% subset(. != 'W2')
+
+    }
 
 
+    #Ignore total fixed asset (not distributed) and households-related assets (such as N111 Dwellings)
+
+    if(any(rownames(formatted_country_data_oecd) %in% c('N11','N111')))
+    {
+      formatted_country_data_oecd = formatted_country_data_oecd[-which(rownames(formatted_country_data_oecd) %in% c('N11','N111')),]
+    }
+
+    #Build up the full-sized matrix applying disaggregation through pi where applicable
+
+    initial_country_data_oecd = matrix(ncol = nrow(concordance_nace.klems),nrow = nrow(formatted_country_data_oecd)) %>%
+      as.data.frame() %>%
+      `rownames<-`(row.names(formatted_country_data_oecd)) %>%
+      `colnames<-`(concordance_nace.klems$industry)
+
+    pp_country = pp %>% filter(substr(rownames(.),1,2) == i & substr(rownames(.),1,5) != 'FIGW1') %>% unlist()
+
+    pi_country = pi %>% subset(substr(names(.),1,2) == i & substr(names(.),1,5) != 'FIGW1') %>% `names<-`(substring(names(.),4))
+
+    pi_country[pi_country == 0] <- 0.1
+
+    for(j in 1:ncol(initial_country_data_oecd))
+    {
+      pi_j = pi_country %>% subset(names(.) %in% gsub('C31_C32','C31_32',colnames(initial_country_data_oecd)[j]))
+
+      ref = reference_activity_country %>%
+        filter(FIGARO == colnames(initial_country_data_oecd)[j]) %>%
+        pull(OECD)
+
+      aggregate_ref = reference_activity_country$FIGARO[which(apply(reference_activity_country, 1, function(row) any(row == ref)))]
+
+      pi_agg = pi_country %>% subset(names(.) %in% gsub('C31_C32','C31_32',aggregate_ref)) %>% sum()
+
+      initial_country_data_oecd[,j] = formatted_country_data_oecd[,ref] / pi_agg * pi_j
+    }
+
+    #FIGARO-related test
+
+    if(ncol(initial_country_data_oecd) != 64) stop('Wrong matching')
+
+    #Set up Gphat, to correspond exactly to the country capital use matrix breakdown level
+
+    Gphat = data.frame(ASSET = rownames(initial_country_data_oecd)) %>%
+      left_join(OECD_KLEMS_CORRESPONDENCE,by = 'ASSET') %>%
+      column_to_rownames('ASSET') %>%
+      as.matrix()
+
+    #Gihat is straightforward (I)
+
+    Gihat = diag(x=1,nrow = 64)
+
+    #Applying Södersten formulas
+
+    Gp = solve(diag(x = as.numeric(Gphat %*% as.matrix(pp_country)))) %*% Gphat %*% diag(x = unlist(pp_country))
+
+    Gi = diag(x = unlist(pi_country)) %*% Gihat %*% solve(diag(x = as.numeric(t(as.matrix(pi_country)) %*% Gihat)))
+
+    K1 = K = t(Gp) %*% as.matrix(initial_country_data_oecd) %*% t(Gi)
+
+    #Lenzen xi
+
+    pi_country_adj = pi_country / sum(pi_country) * sum(pp_country)
+
+    #RAS procedure
+
+    K = ras_capital_use(K1,pp_country,pi_country_adj,min_error,n_iter,verbose)
+
+    storage_K[[i]] = K
+
+  }
+
+  pwt = get_pwt_data(year,verbose) %>%
+    filter(country %in% unique(substr(colnames(figaro),1,2))) %>%
+    mutate(observed = case_when(country %in% names(storage_K) ~ 1,
+                                T ~ 0),
+           GDP_CAT = case_when(GDP_CAPITA <= quantile(GDP_CAPITA,probs = 1/3) ~ 1,
+                               GDP_CAPITA > quantile(GDP_CAPITA,probs = 2/3) ~ 3,
+                               T ~ 2))
+
+  K_DF = c()
+
+  for(i in names(storage_K))
+  {
+
+    K_DF =
+      rbind(K_DF,
+            storage_K[[i]] %>%
+              `dimnames<-`(list(concordance_nace.klems$industry,concordance_nace.klems$industry)) %>%
+              as.data.frame() %>%
+              rownames_to_column('resource_id') %>%
+              pivot_longer(-1,names_to = 'use_id') %>%
+              mutate(country = i,
+                     income_class = pwt$GDP_CAT[pwt$country == i]))
+
+  }
+
+  #Regression Poisson : value of assets = fixed effect asset class, industry, asset class x industry, asset class x income group
+
+  #K_DF is transformed to proportional ratio
+
+  train_poisson_regression <- fepois(
+    value ~ 1 |
+      resource_id +
+      use_id +
+      interaction(resource_id, use_id) +
+      interaction(resource_id, income_class),
+    data = K_DF %>% mutate(value = pmax(value,0)) %>% group_by(use_id,country) %>% mutate(value = value / sum(value)) %>% ungroup())
+
+  to_predict =
+    pwt %>%
+    filter(observed == 0) %>%
+    select(country,income_class = GDP_CAT) %>%
+    rbind(data.frame(country = 'FIGW1',income_class = 1)) %>% #ADDING FIGW1 predict
+    merge(data.frame(resource_id = concordance_nace.klems$industry)) %>%
+    merge(data.frame(use_id = concordance_nace.klems$industry)) %>%
+    mutate(pi = pi[match(paste0(country,"_",gsub('C31_C32','C31_32',use_id)),names(pi))])
+
+  to_predict$value = to_predict$pi * predict(train_poisson_regression,newdata = to_predict) %>% replace_na(0) #NA occurs only when U interacts with U
+
+  sto_K = storage_K
+
+  for(i in unique(to_predict$country))
+  {
+
+    K = K1 = to_predict %>%
+      filter(country == i) %>%
+      select(use_id,resource_id,value) %>%
+      pivot_wider(names_from = 'use_id') %>%
+      column_to_rownames('resource_id') %>%
+      as.matrix()
+
+    pp_country = pp %>% filter(sub("_.*$", "", rownames(.)) == i) %>% unlist()
+
+    pi_country = pi %>% subset(sub("_.*$", "", names(.)) == i)
+
+    pi_country[pi_country == 0] <- 0.1
+
+    pi_country_adj = pi_country / sum(pi_country) * sum(pp_country)
+
+    K = ras_capital_use(K1,pp_country,pi_country_adj,min_error,n_iter,verbose)
+
+    storage_K[[i]] = K
+
+  }
+
+  figaro_investments = figaro %>%
+    select(contains('P51G')) %>%
+    `colnames<-`(gsub('_P51G','',colnames(.)))
+
+  figaro_industries = sub("^[A-Z]{2}_(.*)$", "\\1", rownames(figaro_investments) %>% subset(!grepl('FIGW1|W2',.))) %>% unique()
+
+  K_mat = matrix(0, nrow = length(figaro_industries), ncol = 0,
+                 dimnames = list(figaro_industries, NULL))
+
+  for(i in sort(names(storage_K)))
+  {
+
+    country_sector_destination = figaro_investments %>%
+      filter(sub("_.*$", "", rownames(.)) == i) %>%
+      {sweep(.,1,rowSums(.),`/`)} %>%
+      rownames_to_column('industry') %>%
+      mutate(industry = sub("^[^_]*_(.*)$", "\\1", industry)) %>%
+      pivot_longer(-1,names_to = 'destination',values_to = 'share')
+
+
+    distributed_K = storage_K[[i]] %>%
+      `dimnames<-`(list(figaro_industries,figaro_industries)) %>%
+      as.data.frame() %>%
+      rownames_to_column('resource_id') %>%
+      pivot_longer(-1,names_to = 'use_id') %>%
+      left_join(country_sector_destination,by = c('use_id' = 'industry'),relationship = "many-to-many") %>%
+      mutate(distributed = value * share) %>%
+      arrange(destination,resource_id) %>%
+      reframe(resource_id = paste0(destination,"_",resource_id),use_id = paste0(i,"_",use_id),distributed) %>%
+      pivot_wider(names_from = 'use_id',values_from = 'distributed') %>%
+      column_to_rownames('resource_id')
+
+    distributed_K[is.na(distributed_K)] = 0
+
+    K_mat = cbind(K_mat,distributed_K)
+
+  }
+
+  return(K_mat)
 
 }
 
@@ -636,7 +1212,6 @@ format_domestic_capital_tables(year)
 # Publishing, Paris.
 # http://dx.doi.org/10.1787/4cd06f19-en
 
-#Regression Poisson : value of assets = fixed effect asset class, industry, asset class x industry, asset class x income group
 # korea
 
 file.india_klems = tempfile()
