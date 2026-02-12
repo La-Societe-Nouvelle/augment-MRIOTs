@@ -42,106 +42,197 @@ get_correspondence_nace.klems = function(classification)
 
 }
 
+get_crosswalk_nace.klems = function(classification)
+{
+  crosswalk_klems = data.frame(industry = c('A','B',"C10-C12","C13-C15","C16-C18","C19","C20","C21","C22-C23","C24-C25","C26","C27","C28","C29-C30","C31-C33","D","E","F","G45","G46","G47","H49","H50","H51","H52","H53","I",
+                                            "J58-J60","J61","J62-J63","K","L","M","N","O","P","Q86","Q87-Q88","R","S","T","U")) %>%
+    mutate(Option1 = industry,
+           Option2 = case_when(industry %in% c("C20","C21") ~ "C20-C21",
+                               industry %in% c("C26","C27") ~ "C26-C27",
+                               TRUE ~ NA),
+           Option3 = substr(industry,1,1),
+           Option4 = case_when(industry %in% c('D','E') ~ 'D-E',
+                               industry %in% c('M','N') ~ 'M-N',
+                               industry %in% c('O','P','Q') ~ 'O-Q',
+                               industry %in% c('R','S') ~ 'R-S',
+                               TRUE ~ NA),
+           Option5 = case_when(substr(industry,1,1) %in% c('A','B','C','D','E','F','G','H','I','J','K','M','N','R','S') ~ 'MARKT',
+                               TRUE ~ NA),
+           Option6 = case_when(substr(industry,1,1) %in% c('B','C','D','E','F','G','H','I','J','K','M','N','R','S') ~ 'MARKTxAG',
+                               TRUE ~ NA),
+           Option7 = case_when(substr(industry,1,1) %in% c('A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S') ~ 'TOT_IND',
+                               TRUE ~ NA),
+           Option8 = 'TOT')
+}
+
 get_correspondence_product.klems = function(classification,verbose = T)
 {
 
-  Ye_al_2021 = get_cache_file(link = 'https://github.com/yequanliang1993/capital-endogenized-input-output-model/raw/refs/heads/main/Global_version/data_input/CapitalProject_Concordances.xlsx',
-                              pattern = 'Ye_al_2021',
-                              verbose = verbose) %>%
-    read_xlsx(sheet = 'Asset_Concordance') %>%
-    {.[-c(1,3:4),-c(1,3,4)]} %>%
-    `colnames<-`(c("product",.[1,-1])) %>%
-    {.[-1,]} %>%
-    select(contains("p")) %>%
-    filter(grepl("I_",product)) %>%
-    mutate(product = gsub('I_','',product)) %>%
-    column_to_rownames('product')
+  get_asset_classification() %>%
+    select(KLEMS,INDUSTRY) %>%
+    filter(lengths(KLEMS) <= 2) %>%
+    unnest(c(INDUSTRY, KLEMS)) %>%
+    merge(data.frame(INDUSTRY = c("A01","A02","A03","B","C10T12","C13T15","C16","C17","C18","C19","C20","C21","C22",
+                                  "C23","C24","C25","C26","C27","C28","C29","C30","C31_32","C33","D35","E36","E37T39",
+                                  "F","G45","G46","G47","H49","H50","H51","H52","H53","I","J58","J59_60","J61","J62_63",
+                                  "K64","K65","K66","L","M69_70","M71","M72","M73","M74_75","N77","N78","N79","N80T82",
+                                  "O84","P85","Q86","Q87_88","R90T92","R93","S94","S95","S96","T","U")),all = T) %>%
+    mutate(value = 1) %>%
+    distinct() %>%
+    pivot_wider(names_from = INDUSTRY,values_fill = 0) %>%
+    filter(!is.na(KLEMS)) %>%
+    column_to_rownames('KLEMS') %>%
+    arrange(tolower(row.names(.)))
 
-  Bourgeois_al_2023 = get_cache_file(link = 'https://raw.githubusercontent.com/La-Societe-Nouvelle/Comparing_MRIOTs_in_R/refs/heads/main/TabPass%20Exio3%20to%20FIGARO.csv',
-                                     pattern = 'Bourgeois_al_2023',
-                                     verbose = verbose) %>%
-    read.csv(sep = ";") %>%
-    filter(Pays == 'FR') %>%
-    select(vrai_code,starts_with('D')) %>%
-    pivot_longer(-1,names_to = 'raw_industry') %>%
-    mutate(figaro = case_when(raw_industry == "D01T02" ~ list(c("A01","A02")),
-                              raw_industry == "D03" ~ list("A03"),
-                              raw_industry %in% c('D05T06','D07T08','D09') ~ list('B'),
-                              raw_industry == "D10T12" ~ list("C10T12"),
-                              raw_industry == "D13T15" ~ list("C13T15"),
-                              raw_industry == "D16" ~ list("C16"),
-                              raw_industry == "D17T18" ~ list(c("C17","C18")),
-                              raw_industry =="D19" ~ list("C19"),
-                              raw_industry == "D20" ~ list("C20"),
-                              raw_industry == "D21" ~ list("C21"),
-                              raw_industry == "D22" ~ list("C22"),
-                              raw_industry == "D23" ~ list("C23"),
-                              raw_industry == "D24" ~ list("C24"),
-                              raw_industry == "D25" ~ list("C25"),
-                              raw_industry == "D26" ~ list("C26"),
-                              raw_industry == "D27" ~ list("C27"),
-                              raw_industry == "D28" ~ list("C28"),
-                              raw_industry == "D29" ~ list("C29"),
-                              raw_industry == "D30" ~ list("C30"),
-                              raw_industry == 'D31T33' ~ list(c("C31_32","C33")),
-                              raw_industry == "D35" ~ list("D35"),
-                              raw_industry == 'D36T39' ~ list(c("E36","E37T39")),
-                              raw_industry == 'D41T43' ~ list('F'),
-                              raw_industry == 'D45T47' ~ list(c("G45","G46","G47")),
-                              raw_industry == "D49" ~ list("H49"),
-                              raw_industry == "D50" ~ list("H50"),
-                              raw_industry == "D51" ~ list("H51"),
-                              raw_industry == "D52" ~ list("H52"),
-                              raw_industry == "D53" ~ list("H53"),
-                              raw_industry == 'D55T56' ~ list('I'),
-                              raw_industry == 'D58T60' ~ list(c("J58","J59_60")),
-                              raw_industry == 'D61' ~ list('J61'),
-                              raw_industry == 'D62T63' ~ list('J62_63'),
-                              raw_industry == 'D64T66' ~ list(c("K64","K65","K66")),
-                              raw_industry == 'D68' ~ list('L'),
-                              raw_industry == 'D69T75' ~ list(c("M69_70","M71","M72","M73","M74_75")),
-                              raw_industry == 'D77T82' ~ list(c("N77","N78","N79",'N80T82')),
-                              raw_industry == 'D84' ~ list('O84'),
-                              raw_industry == 'D85' ~ list('P85'),
-                              raw_industry == 'D86T88' ~ list(c("Q86","Q87_88")),
-                              raw_industry == 'D90T93' ~ list(c("R90T92","R93")),
-                              raw_industry == 'D94T96' ~ list(c("S94","S95","S96")),
-                              raw_industry == 'D97T98' ~ list('T'),
-                              raw_industry == 'D99' ~ list('U'))) %>%
-    unnest(figaro) %>%
-    select(!raw_industry) %>%
-    group_by(vrai_code,figaro) %>%
-    summarise(value = case_when(any(value) == 1 ~ 1,
-                                T ~ 0)) %>%
-    ungroup() %>%
-    pivot_wider(names_from = 'figaro',values_fill = 0) %>%
-    column_to_rownames('vrai_code') %>%
-    `rownames<-`(paste0("p",substring(rownames(.),2))) %>%
-    cbind(U = 0)
-
-  missing = colnames(Ye_al_2021) %>% subset(!colnames(Ye_al_2021) %in% rownames(Bourgeois_al_2023))
-
-  remove_2l = missing %>% subset(substr(missing,1,nchar(missing)-2) %in% rownames(Bourgeois_al_2023))
-
-  remove_3l = missing %>% subset((substr(missing,1,nchar(missing)-3) %in% rownames(Bourgeois_al_2023)) & (!missing %in% remove_2l))
-
-  colnames(Ye_al_2021) = case_when(colnames(Ye_al_2021) %in% remove_2l ~ substr(colnames(Ye_al_2021),1,nchar(colnames(Ye_al_2021))-2),
-                                   colnames(Ye_al_2021) %in% remove_3l ~ substr(colnames(Ye_al_2021),1,nchar(colnames(Ye_al_2021))-3),
-                                   colnames(Ye_al_2021) %in% c("p24.e","p24.f","p24.g","p24.h","p24.i") ~ "p24.d",
-                                   colnames(Ye_al_2021) == 'p26.w.1' ~ 'p26.a.w',
-                                   T ~ colnames(Ye_al_2021))
-
-  Ye_al_formatted = sapply(unique(colnames(Ye_al_2021)), function(x) {
-    cols <- which(colnames(Ye_al_2021) == x)
-    apply(Ye_al_2021[, cols, drop = FALSE], 1, max)
-  }) %>% as.data.frame()
-
-  Ye_al_formatted[] <- lapply(Ye_al_formatted, function(x) as.numeric(x))
-
-  correspondence_product.klems = (as.matrix(Ye_al_formatted) %*% as.matrix(Bourgeois_al_2023)) %>%
-    {(. > 0) * 1}
-
-  return(correspondence_product.klems)
+  # Ye_al_2021 = get_cache_file(link = 'https://github.com/yequanliang1993/capital-endogenized-input-output-model/raw/refs/heads/main/Global_version/data_input/CapitalProject_Concordances.xlsx',
+  #                             pattern = 'Ye_al_2021',
+  #                             verbose = verbose) %>%
+  #   read_xlsx(sheet = 'Asset_Concordance') %>%
+  #   {.[-c(1,3:4),-c(1,3,4)]} %>%
+  #   `colnames<-`(c("product",.[1,-1])) %>%
+  #   {.[-1,]} %>%
+  #   select(contains("p")) %>%
+  #   filter(grepl("I_",product)) %>%
+  #   mutate(product = gsub('I_','',product)) %>%
+  #   column_to_rownames('product')
+  #
+  # test =get_cache_file(link = 'https://raw.githubusercontent.com/La-Societe-Nouvelle/Comparing_MRIOTs_in_R/refs/heads/main/TabPass%20Exio3%20to%20FIGARO.csv',
+  #                      pattern = 'Bourgeois_al_2023',
+  #                      verbose = verbose) %>%
+  #   read.csv(sep = ";") %>%
+  #   filter(Pays == 'FR') %>%
+  #   select(vrai_code,starts_with('D')) %>%
+  #   pivot_longer(-1,names_to = 'raw_industry') %>%
+  #   mutate(figaro = case_when(raw_industry == "D01T02" ~ list(c("A01","A02")),
+  #                             raw_industry == "D03" ~ list("A03"),
+  #                             raw_industry %in% c('D05T06','D07T08','D09') ~ list('B'),
+  #                             raw_industry == "D10T12" ~ list("C10T12"),
+  #                             raw_industry == "D13T15" ~ list("C13T15"),
+  #                             raw_industry == "D16" ~ list("C16"),
+  #                             raw_industry == "D17T18" ~ list(c("C17","C18")),
+  #                             raw_industry =="D19" ~ list("C19"),
+  #                             raw_industry == "D20" ~ list("C20"),
+  #                             raw_industry == "D21" ~ list("C21"),
+  #                             raw_industry == "D22" ~ list("C22"),
+  #                             raw_industry == "D23" ~ list("C23"),
+  #                             raw_industry == "D24" ~ list("C24"),
+  #                             raw_industry == "D25" ~ list("C25"),
+  #                             raw_industry == "D26" ~ list("C26"),
+  #                             raw_industry == "D27" ~ list("C27"),
+  #                             raw_industry == "D28" ~ list("C28"),
+  #                             raw_industry == "D29" ~ list("C29"),
+  #                             raw_industry == "D30" ~ list("C30"),
+  #                             raw_industry == 'D31T33' ~ list(c("C31_32","C33")),
+  #                             raw_industry == "D35" ~ list("D35"),
+  #                             raw_industry == 'D36T39' ~ list(c("E36","E37T39")),
+  #                             raw_industry == 'D41T43' ~ list('F'),
+  #                             raw_industry == 'D45T47' ~ list(c("G45","G46","G47")),
+  #                             raw_industry == "D49" ~ list("H49"),
+  #                             raw_industry == "D50" ~ list("H50"),
+  #                             raw_industry == "D51" ~ list("H51"),
+  #                             raw_industry == "D52" ~ list("H52"),
+  #                             raw_industry == "D53" ~ list("H53"),
+  #                             raw_industry == 'D55T56' ~ list('I'),
+  #                             raw_industry == 'D58T60' ~ list(c("J58","J59_60")),
+  #                             raw_industry == 'D61' ~ list('J61'),
+  #                             raw_industry == 'D62T63' ~ list('J62_63'),
+  #                             raw_industry == 'D64T66' ~ list(c("K64","K65","K66")),
+  #                             raw_industry == 'D68' ~ list('L'),
+  #                             raw_industry == 'D69T75' ~ list(c("M69_70","M71","M72","M73","M74_75")),
+  #                             raw_industry == 'D77T82' ~ list(c("N77","N78","N79",'N80T82')),
+  #                             raw_industry == 'D84' ~ list('O84'),
+  #                             raw_industry == 'D85' ~ list('P85'),
+  #                             raw_industry == 'D86T88' ~ list(c("Q86","Q87_88")),
+  #                             raw_industry == 'D90T93' ~ list(c("R90T92","R93")),
+  #                             raw_industry == 'D94T96' ~ list(c("S94","S95","S96")),
+  #                             raw_industry == 'D97T98' ~ list('T'),
+  #                             raw_industry == 'D99' ~ list('U')))
+  #
+  # Bourgeois_al_2023 = get_cache_file(link = 'https://raw.githubusercontent.com/La-Societe-Nouvelle/Comparing_MRIOTs_in_R/refs/heads/main/TabPass%20Exio3%20to%20FIGARO.csv',
+  #                                    pattern = 'Bourgeois_al_2023',
+  #                                    verbose = verbose) %>%
+  #   read.csv(sep = ";") %>%
+  #   filter(Pays == 'FR') %>%
+  #   select(vrai_code,starts_with('D')) %>%
+  #   pivot_longer(-1,names_to = 'raw_industry') %>%
+  #   mutate(figaro = case_when(raw_industry == "D01T02" ~ list(c("A01","A02")),
+  #                             raw_industry == "D03" ~ list("A03"),
+  #                             raw_industry %in% c('D05T06','D07T08','D09') ~ list('B'),
+  #                             raw_industry == "D10T12" ~ list("C10T12"),
+  #                             raw_industry == "D13T15" ~ list("C13T15"),
+  #                             raw_industry == "D16" ~ list("C16"),
+  #                             raw_industry == "D17T18" ~ list(c("C17","C18")),
+  #                             raw_industry =="D19" ~ list("C19"),
+  #                             raw_industry == "D20" ~ list("C20"),
+  #                             raw_industry == "D21" ~ list("C21"),
+  #                             raw_industry == "D22" ~ list("C22"),
+  #                             raw_industry == "D23" ~ list("C23"),
+  #                             raw_industry == "D24" ~ list("C24"),
+  #                             raw_industry == "D25" ~ list("C25"),
+  #                             raw_industry == "D26" ~ list("C26"),
+  #                             raw_industry == "D27" ~ list("C27"),
+  #                             raw_industry == "D28" ~ list("C28"),
+  #                             raw_industry == "D29" ~ list("C29"),
+  #                             raw_industry == "D30" ~ list("C30"),
+  #                             raw_industry == 'D31T33' ~ list(c("C31_32","C33")),
+  #                             raw_industry == "D35" ~ list("D35"),
+  #                             raw_industry == 'D36T39' ~ list(c("E36","E37T39")),
+  #                             raw_industry == 'D41T43' ~ list('F'),
+  #                             raw_industry == 'D45T47' ~ list(c("G45","G46","G47")),
+  #                             raw_industry == "D49" ~ list("H49"),
+  #                             raw_industry == "D50" ~ list("H50"),
+  #                             raw_industry == "D51" ~ list("H51"),
+  #                             raw_industry == "D52" ~ list("H52"),
+  #                             raw_industry == "D53" ~ list("H53"),
+  #                             raw_industry == 'D55T56' ~ list('I'),
+  #                             raw_industry == 'D58T60' ~ list(c("J58","J59_60")),
+  #                             raw_industry == 'D61' ~ list('J61'),
+  #                             raw_industry == 'D62T63' ~ list('J62_63'),
+  #                             raw_industry == 'D64T66' ~ list(c("K64","K65","K66")),
+  #                             raw_industry == 'D68' ~ list('L'),
+  #                             raw_industry == 'D69T75' ~ list(c("M69_70","M71","M72","M73","M74_75")),
+  #                             raw_industry == 'D77T82' ~ list(c("N77","N78","N79",'N80T82')),
+  #                             raw_industry == 'D84' ~ list('O84'),
+  #                             raw_industry == 'D85' ~ list('P85'),
+  #                             raw_industry == 'D86T88' ~ list(c("Q86","Q87_88")),
+  #                             raw_industry == 'D90T93' ~ list(c("R90T92","R93")),
+  #                             raw_industry == 'D94T96' ~ list(c("S94","S95","S96")),
+  #                             raw_industry == 'D97T98' ~ list('T'),
+  #                             raw_industry == 'D99' ~ list('U'))) %>%
+  #   unnest(figaro) %>%
+  #   select(!raw_industry) %>%
+  #   group_by(vrai_code,figaro) %>%
+  #   summarise(value = case_when(any(value) == 1 ~ 1,
+  #                               T ~ 0)) %>%
+  #   ungroup() %>%
+  #   pivot_wider(names_from = 'figaro',values_fill = 0) %>%
+  #   column_to_rownames('vrai_code') %>%
+  #   `rownames<-`(paste0("p",substring(rownames(.),2))) %>%
+  #   cbind(U = 0)
+  #
+  # missing = colnames(Ye_al_2021) %>% subset(!colnames(Ye_al_2021) %in% rownames(Bourgeois_al_2023))
+  #
+  # remove_2l = missing %>% subset(substr(missing,1,nchar(missing)-2) %in% rownames(Bourgeois_al_2023))
+  #
+  # remove_3l = missing %>% subset((substr(missing,1,nchar(missing)-3) %in% rownames(Bourgeois_al_2023)) & (!missing %in% remove_2l))
+  #
+  # colnames(Ye_al_2021) = case_when(colnames(Ye_al_2021) %in% remove_2l ~ substr(colnames(Ye_al_2021),1,nchar(colnames(Ye_al_2021))-2),
+  #                                  colnames(Ye_al_2021) %in% remove_3l ~ substr(colnames(Ye_al_2021),1,nchar(colnames(Ye_al_2021))-3),
+  #                                  colnames(Ye_al_2021) %in% c("p24.e","p24.f","p24.g","p24.h","p24.i") ~ "p24.d",
+  #                                  colnames(Ye_al_2021) == 'p26.w.1' ~ 'p26.a.w',
+  #                                  T ~ colnames(Ye_al_2021))
+  #
+  # Ye_al_formatted = sapply(unique(colnames(Ye_al_2021)), function(x) {
+  #   cols <- which(colnames(Ye_al_2021) == x)
+  #   apply(Ye_al_2021[, cols, drop = FALSE], 1, max)
+  # }) %>% as.data.frame()
+  #
+  # Ye_al_formatted[] <- lapply(Ye_al_formatted, function(x) as.numeric(x))
+  #
+  # correspondence_product.klems = (as.matrix(Ye_al_formatted) %*% as.matrix(Bourgeois_al_2023)) %>%
+  #   {(. > 0) * 1}
+  #
+  # return(correspondence_product.klems)
 
 }
 
@@ -169,25 +260,88 @@ get_correspondence_nace.oecd = function(classification)
 
 }
 
+get_asset_classification = function()
+{
+
+  data.frame(ASSET = c("N11","N111","N112","N1131","N11321","N11322","N115","N1171","N1172","N1173","N11731","N11732","N1174","N1179","N11K","N11M","N11O")) %>%
+    mutate(INDUSTRY = case_when(ASSET == 'N111' ~ list('F'),
+                                ASSET == 'N112' ~ list('F'),
+                                ASSET == 'N1131' ~ list(c('C29','C30')), #Transport equipment 29_30
+                                ASSET == 'N11321' ~ list('C26'),#Information and communication technologies (ICT) equipment 26
+                                ASSET == 'N11322' ~ list('C26'),#Information and communication technologies (ICT) equipment 26
+                                ASSET == 'N1139' ~ list(c('C26','C27','C28','C31_C32')),#Machinery and equipment not elsewhere classified 26_27_28_31_32
+                                ASSET == 'N115' ~ list(c('A01','A02','A03')), #Animals whose natural growth and regeneration are under the direct control, responsibility and management of institutional units A01 A02 A03
+                                ASSET == 'N1171' ~ list('M72'), #Consists of the value of expenditure on creative work undertaken on a systematic basis in order to increase the stock of knowledge, including knowledge of man, culture and society, and use of this stock of knowledge to devise new applications.
+                                #One can put N1172 -> B ; but this would mean that N117 is a weighted aggregate of CPA_B CPA_M72 -> FALSE in most cases.
+                                ASSET == 'N1172' ~ list('M72'), #The value of expenditure on exploration for petroleum and natural gas and for non-petroleum deposits and subsequent evaluation of the discoveries made
+                                ASSET == 'N11731' ~ list('J62_63'), #Computer programs, program descriptions and supporting materials for both systems and applications software
+                                ASSET == 'N11732' ~ list('J62_63'), #Files of data organised to permit resource-effective access and use of the data
+                                ASSET == 'N1174' ~ list(c('J59_60','R90T92','R93')),#Original films, sound recordings, manuscripts, tapes, models, etc., on which drama performances, radio and television programmes, musical performances, sporting events, literary and artistic output, etc. are recorded or embodied
+                                ASSET == 'N1179' ~ list('M72'),
+                                ASSET == 'N11K' ~ list('F'),
+                                ASSET == 'N11M' ~ list(c('C26','C29','C30')),
+                                ASSET == 'N11O' ~ list(c('C26','C27','C28','C31_32'))),
+
+           KLEMS = case_when(ASSET == 'N111' ~ list('Rstruc'),
+                             ASSET == 'N112' ~ list('OCon'),
+                             ASSET == 'N1131' ~ list('TraEq'), #Transport equipment 29_30
+                             ASSET == 'N11321' ~ list('IT'),#Information and communication technologies (ICT) equipment 26
+                             ASSET == 'N11322' ~ list('CT'),#Information and communication technologies (ICT) equipment 26
+                             ASSET == 'N1139' ~ list('OMach'),#Machinery and equipment not elsewhere classified 26_27_28_31_32
+                             ASSET == 'N115' ~ list('Cult'), #Animals whose natural growth and regeneration are under the direct control, responsibility and management of institutional units A01 A02 A03
+                             ASSET == 'N1171' ~ list('RD'), #Consists of the value of expenditure on creative work undertaken on a systematic basis in order to increase the stock of knowledge, including knowledge of man, culture and society, and use of this stock of knowledge to devise new applications.
+                             ASSET == 'N1172' ~ list('RD'), #The value of expenditure on exploration for petroleum and natural gas and for non-petroleum deposits and subsequent evaluation of the discoveries made
+                             ASSET == 'N11731' ~ list('Soft_DB'), #Computer programs, program descriptions and supporting materials for both systems and applications software
+                             ASSET == 'N11732' ~ list('Soft_DB'), #Files of data organised to permit resource-effective access and use of the data
+                             ASSET == 'N1174' ~ list('OIPP'), #Original films, sound recordings, manuscripts, tapes, models, etc., on which drama performances, radio and television programmes, musical performances, sporting events, literary and artistic output, etc. are recorded or embodied
+                             ASSET == 'N1179' ~ list('OIPP'),
+                             ASSET == 'N11K' ~ list(c('Rstruc','OCon')),
+                             ASSET == 'N11M' ~ list(c('IT','CT','TraEq')),
+                             ASSET == 'N11O' ~ list('OMach')))
+
+}
+
+
+
+
+# CY, CZ, DE, LV, NL, PT, SI, BE,ES, IT,LT,IS,EL
+# DK,PL ?
+
 get_correspondence_product.oecd = function(classification)
 {
   if(classification == 'FIGARO')
   {
 
-  OECD_TO_KLEMS =
-    get_correspondence_product.oecd_to_klems(classification)
+    get_asset_classification() %>%
+      select(ASSET,INDUSTRY) %>%
+      filter(lengths(ASSET) == 1) %>%
+      unnest(c(INDUSTRY, ASSET)) %>%
+      filter(!is.na(INDUSTRY)) %>%
+      merge(data.frame(INDUSTRY = c("A01","A02","A03","B","C10T12","C13T15","C16","C17","C18","C19","C20","C21","C22",
+                                    "C23","C24","C25","C26","C27","C28","C29","C30","C31_32","C33","D35","E36","E37T39",
+                                    "F","G45","G46","G47","H49","H50","H51","H52","H53","I","J58","J59_60","J61","J62_63",
+                                    "K64","K65","K66","L","M69_70","M71","M72","M73","M74_75","N77","N78","N79","N80T82",
+                                    "O84","P85","Q86","Q87_88","R90T92","R93","S94","S95","S96","T","U")),all = T) %>%
+      mutate(value = 1) %>%
+      distinct() %>%
+      pivot_wider(names_from = INDUSTRY,values_fill = 0) %>%
+      filter(!is.na(ASSET)) %>%
+      arrange(ASSET)
 
-  KLEMS_TO_FIGARO =
-    get_correspondence_product.klems(classification = classification)
-
-  OECD_TO_FIGARO =
-    OECD_TO_KLEMS %>%
-    left_join(KLEMS_TO_FIGARO %>% as.data.frame() %>% rownames_to_column('KLEMS'),by = 'KLEMS') %>%
-    group_by(ASSET) %>%
-    summarise(across(-KLEMS, ~ pmin(sum(.), 1)),.groups = 'drop')
-
-
-  return(OECD_TO_FIGARO)
+  # OECD_TO_KLEMS =
+  #   get_correspondence_product.oecd_to_klems(classification)
+  #
+  # KLEMS_TO_FIGARO =
+  #   get_correspondence_product.klems(classification = classification)
+  #
+  # OECD_TO_FIGARO =
+  #   OECD_TO_KLEMS %>%
+  #   left_join(KLEMS_TO_FIGARO %>% as.data.frame() %>% rownames_to_column('KLEMS'),by = 'KLEMS') %>%
+  #   group_by(ASSET) %>%
+  #   summarise(across(-KLEMS, ~ pmin(sum(.), 1)),.groups = 'drop')
+  #
+  #
+  # return(OECD_TO_FIGARO)
   }
 
 
@@ -264,20 +418,18 @@ get_correspondence_product.oecd_to_klems = function(classification)
 {
 
   OECD_TO_KLEMS =
-    data.frame(ASSET = c("N11","N111","N112","N1131","N11321","N11322","N115","N1171","N1172","N1173","N11731","N11732","N1174","N1179","N11K","N11M","N11O")) %>%
-    mutate(KLEMS = case_when(ASSET == 'N111' ~ list('RStruc'),
-                             ASSET == 'N112' ~ list('OCon'),
-                             ASSET == 'N1131' ~ list('TraEq'),
-                             ASSET == 'N11321' ~ list('IT'),
-                             ASSET == 'N11322' ~ list('CT'),
-                             ASSET == 'N115' ~ list('Cult'),
-                             ASSET %in% c('N1171','N1172') ~ list('RD'),
-                             ASSET %in% c('N1173','N11731','N11732') ~ list('Soft_DB'), #Software = 58 & 62 #Database = 63
-                             ASSET %in% c('N1179','N1174') ~ list('OIPP'),
-                             ASSET == 'N11K' ~ list(c('RStruc','OCon')),
-                             ASSET %in% c('N11M','N11O') ~ list('OMach'))) %>% #The reference are straightforwardly taken from KLEMS documentation (Bontadini et al. 02/2023)
+    get_asset_classification() %>%
+    select(ASSET,KLEMS) %>%
     unnest(KLEMS) %>%
-    distinct()
+    distinct() %>%
+    rbind(data.frame(ASSET = 'N1173',KLEMS = 'Soft_DB'))
+
+  # OECD_TO_KLEMS[nchar(OECD_TO_KLEMS$ASSET) > 4,] %>%
+  #   group_by(ASSET = substr(ASSET,1,nchar(ASSET)-1)) %>%
+  #   reframe(KLEMS = unique(KLEMS),.groups = 'drop') %>%
+  #   filter(ASSET != 'N1132' | KLEMS != 'CT') %>% #For simplicity, when ICT appears, classify into IT
+  # filter(ASSET != 'N1132' | KLEMS != 'CT') #For simplicity, when ICT appears, classify into IT
+  #
 
   return(OECD_TO_KLEMS)
 

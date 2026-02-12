@@ -129,6 +129,16 @@ import_depreciation_rates_klems = function(update = F,verbose = T)
     filter(!is.na(IT)) %>%
     pivot_longer(-1,names_to = 'product',values_to = 'rate')
 
+  depreciations.klems = rbind(depreciations.klems,
+                              depreciations.klems %>%
+                                group_by(Code = case_when(Code %in% c('C20','C21') ~ 'C20-C21',
+                                                          Code %in% c('C26','C27') ~ 'C26-C27',
+                                                          Code %in% c('D','E') ~ 'D-E'),
+                                         product) %>%
+                                filter(!is.na(Code)) %>%
+                                mutate(rate = mean(rate)) %>%
+                                ungroup())
+
   write_parquet(depreciations.klems,
                 tempfile(pattern = pattern))
 
@@ -141,7 +151,7 @@ import_oecd_fixed_asset = function(year,verbose = T)
 {
   fixed_assets_sector = get_cache_file(paste0('https://sdmx.oecd.org/public/rest/data/OECD.SDD.NAD,DSD_NAMAIN10@DF_TABLE9A,/A.........V..?startPeriod=',
                                               year,"&endPeriod=",year,'&dimensionAtObservation=AllDimensions&format=csvfilewithlabels'),
-                                       pattern = 'OECD_FIXED_ASSETS_SECTORS') %>%
+                                       pattern = paste0('OECD_FIXED_ASSETS_SECTORS',year)) %>%
     read.csv(check.names = F) %>%
     select(REF_AREA,INSTR_ASSET,`Financial instruments and non-financial assets`,OBS_VALUE,ACTIVITY,TIME_PERIOD,CURRENCY) %>%
     mutate(ISO2 = countrycode(REF_AREA,'iso3c','iso2c',nomatch = NULL)) %>%
@@ -154,18 +164,19 @@ import_oecd_fixed_asset = function(year,verbose = T)
 
   #We delete aggregate when details are available in order to avoid double counting
 
-  for(i in sort(unique(fixed_assets_sector$level),decreasing = T))
-  {
-
-    asset_level = fixed_assets_sector %>% filter(level == i) %>% pull(ASSET)
-
-    asset_aggregate = substr(asset_level,1,nchar(asset_level)-1) %>% unique()
-
-    to_delete = fixed_assets_sector %>% group_by(industry) %>% filter(any(ASSET %in% asset_level)) %>% filter(ASSET %in% asset_aggregate) %>% ungroup() %>% distinct(industry,INSTR_ASSET)
-
-    fixed_assets_sector = fixed_assets_sector %>% filter(!paste0(industry,INSTR_ASSET) %in% paste0(to_delete$industry,to_delete$INSTR_ASSET))
-
-  }
+  # for(i in sort(unique(fixed_assets_sector$level),decreasing = T))
+  # {
+  #
+  #   asset_level = fixed_assets_sector %>% filter(level == i) %>% pull(ASSET) %>% unique()
+  #
+  #   asset_aggregate = substr(asset_level,1,nchar(asset_level)-1) %>% unique()
+  #
+  #   to_delete = fixed_assets_sector %>% group_by(industry) %>% filter(any(ASSET %in% asset_level)) %>% filter(ASSET %in% asset_aggregate) %>% ungroup() %>% distinct(industry,INSTR_ASSET)
+  #
+  #   print(to_delete)
+  #   # fixed_assets_sector = fixed_assets_sector %>% filter(!paste0(industry,INSTR_ASSET) %in% paste0(to_delete$industry,to_delete$INSTR_ASSET))
+  #
+  # }
 
    return(fixed_assets_sector)
 
