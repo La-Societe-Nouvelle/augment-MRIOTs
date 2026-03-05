@@ -533,7 +533,7 @@ domestic_capital_stock_matrix.oecd = function(year,figaro,un_ratios,missing,figa
 
 }
 
-missing_countries_capital_stock = function(year,domestic_capital_stock_list,figaro,un_ratios,verbose)
+missing_countries_capital_stock = function(year,domestic_capital_stock_list,figaro,un_ratios,option = 'Poisson',verbose)
 {
 
   #Data preparation
@@ -578,6 +578,34 @@ missing_countries_capital_stock = function(year,domestic_capital_stock_list,figa
 
   }
 
+  if(tolower(option) == 'average')
+  {
+
+  average_capital_stock = K_DF %>%
+    group_by(resource_id,use_id) %>%
+    mutate(value_added = value_added.figaro$value_added[match(paste0(country,use_id),paste0(value_added.figaro$country,value_added.figaro$industry))]) %>%
+    summarise(value = sum(value),
+              value_added = sum(value_added),
+              .groups = 'drop') %>%
+    group_by(use_id) %>%
+    mutate(share = value / value_added) %>%
+    ungroup()
+
+  to_predict = pwt %>%
+    filter(observed == 0) %>%
+    select(country,income_class = GDP_CAT) %>%
+    rbind(data.frame(country = 'FIGW1',income_class = 1)) %>% #ADDING FIGW1 predict
+    merge(data.frame(resource_id = unique(K_DF$resource_id))) %>%
+    merge(data.frame(use_id = correspondence_nace$industry)) %>%
+    mutate(value_added = value_added.figaro$value_added[match(paste0(country,use_id),paste0(value_added.figaro$country,value_added.figaro$industry))],
+           share = average_capital_stock$share[match(paste0(use_id,resource_id),paste0(average_capital_stock$use_id,average_capital_stock$resource_id))],
+           value = case_when(share == 0 | value_added == 0 | value_added < 0 ~ 0,
+                             T ~ share * value_added))
+
+  }
+
+  if(option == 'Poisson')
+  {
   #Regression Poisson : value of assets = fixed effect asset class, industry, asset class x industry, asset class x income group
 
   #K_DF is transformed to proportional ratio
@@ -603,6 +631,8 @@ missing_countries_capital_stock = function(year,domestic_capital_stock_list,figa
     mutate(value_added = value_added.figaro$value_added[match(paste0(country,use_id),paste0(value_added.figaro$country,value_added.figaro$industry))],
            #NA occurs only when U interacts with U
            value = value_added * predict(train_poisson_regression,newdata = .) %>% replace_na(0))
+
+  }
 
 
   for(i in unique(to_predict$country))
@@ -746,23 +776,25 @@ distribute_origin_suppliers = function(figaro,domestic_capital_tables_pxi,verbos
               CFC = CFC_PXI))
 }
 
-compilation_d_fixed_sales_assumption = function(year,multi_regional_capital_use_pxi,figaro_margins,n_iter,min_error,verbose)
+compilation_d_fixed_sales_assumption = function(year,multi_regional_capital_use_pxi,figaro_margins,n_iter,min_error,option,verbose)
 {
-  V = import_figaro_supply_table(year,verbose)
+  V_t = import_figaro_supply_table(year,verbose)
 
   U = import_figaro_use_table(year,verbose)
 
-  q = rowSums(V,na.rm = T)
+  q = rowSums(V_t,na.rm = T)
 
-  p = colSums(V,na.rm = T)
+  p = colSums(V_t,na.rm = T)
 
-  Tr = t(U[1:nrow(V),1:ncol(V)]) %*% diag(x = case_when(q == 0 ~ 0,T ~ 1/q))
+  Tr = t(V_t) %*% diag(x = case_when(q == 0 ~ 0,T ~ 1/q))
 
   STOCK_IXI = Tr %*% as.matrix(multi_regional_capital_use_pxi$Stock)
 
   CFC_IXI = K = Tr %*% as.matrix(multi_regional_capital_use_pxi$CFC)
 
-  figaro_margins$rowwise =  figaro_margins$rowwise / sum(figaro_margins$rowwise,na.rm = T) * sum(figaro_margins$colwise)
+  if(option == 'CFC') figaro_margins$rowwise =  figaro_margins$rowwise / sum(figaro_margins$rowwise,na.rm = T) * sum(figaro_margins$colwise)
+
+  if(option == 'GFCF') figaro_margins$colwise =  figaro_margins$colwise / sum(figaro_margins$colwise,na.rm = T) * sum(figaro_margins$rowwise)
 
   for(iter in 1:n_iter)
   {
@@ -791,7 +823,7 @@ compilation_d_fixed_sales_assumption = function(year,multi_regional_capital_use_
                      CAPITAL_STOCK = STOCK_IXI_SCALED)))
 }
 
-format_domestic_capital_tables = function(year,classification = 'FIGARO',n_iter = 100,min_error = 1e-3,verbose = T)
+format_domestic_capital_tables = function(year,classification = 'FIGARO',n_iter = 100,min_error = 1e-3,missing_option = 'Poisson',ras_option = 'CFC',verbose = T)
 {
   figaro = import_figaro_io_table(year)
 
@@ -805,29 +837,19 @@ format_domestic_capital_tables = function(year,classification = 'FIGARO',n_iter 
 
   domestic_capital_stock_list.klems = domestic_capital_stock_matrix.klems(klems_data,figaro,classification,figaro_margins,verbose)
 
-  print("A")
-
   missing_countries = sub("_.*$", "", colnames(figaro)) %>% unique() %>% subset(!. %in% names(domestic_capital_stock_list.klems))
 
   domestic_capital_stock_list.oecd = domestic_capital_stock_matrix.oecd(year,figaro,un_ratios,missing_countries,figaro_margins,verbose)
 
-  print("B")
-
   domestic_capital_stock_list = c(domestic_capital_stock_list.klems,domestic_capital_stock_list.oecd)
 
-  complete_domestic_capital_stock = domestic_capital_stock_list %>% missing_countries_capital_stock(year,.,figaro,un_ratios,verbose)
-
-  print("C")
+  complete_domestic_capital_stock = domestic_capital_stock_list %>% missing_countries_capital_stock(year,.,figaro,un_ratios,option = missing_option,verbose)
 
   domestic_capital_tables_pxi = domestic_capital_tables(figaro,complete_domestic_capital_stock,verbose)
 
-  print("D")
-
   multi_regional_capital_use_pxi = distribute_origin_suppliers(figaro,domestic_capital_tables_pxi,verbose)
 
-  print("E")
-
-  multi_regional_capital_use_ixi = compilation_d_fixed_sales_assumption(year,multi_regional_capital_use_pxi,figaro_margins,n_iter = 100,min_error = 1e-3,verbose)
+  multi_regional_capital_use_ixi = compilation_d_fixed_sales_assumption(year,multi_regional_capital_use_pxi,figaro_margins,n_iter = n_iter,min_error = min_error-3,option = ras_option,verbose) #RAS CFC GFCF
 
   return(multi_regional_capital_use_ixi)
 
