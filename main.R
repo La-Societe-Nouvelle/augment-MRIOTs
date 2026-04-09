@@ -1,4 +1,4 @@
-x = c("tidyverse","curl","DBI","arrow","bir","icarus","readxl","melodi","countrycode","httr2",'rvest','countrycode','httr','fixest','here','eurostat','stringr')
+x = c("tidyverse","curl","arrow","readxl","countrycode","httr2",'rvest','countrycode','httr','fixest','here','eurostat','stringr')
 
 lapply(x,library,character.only = T)
 
