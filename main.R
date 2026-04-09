@@ -11,69 +11,9 @@ files <- c(
 
 lapply(files, function(f) source(here(f)))
 
-compute_ict_shares = function(year)
+compute_footprint_K = function(year,pattern = '26|46|58|61|62|63|95',verbose = T)
 {
-dataset.sdbs = read.csv(paste0("https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_SDBSBSC_ISIC4@DF_SDBS_ISIC4,1.0/A..PROD.._T.?startPeriod=",year,#VAFC
-                               "&endPeriod=",year,"&dimensionAtObservation=AllDimensions&format=csvfilewithlabels")) %>%
-  mutate(ISIC4 = substring(ACTIVITY,2)) %>%
-  filter(ISIC4 %in% c("26","46","62","95","63","61","58",
-                      "261","262","263","264","268",
-                      "465",
-                      "620","951","631","61","582")) %>%
-  mutate(level = case_when(nchar(ISIC4) == 2 ~ 1,
-                           T ~ 2),
-         branch = case_when(substr(ISIC4,1,2) %in% c("62","63") ~ "J62_63",
-                            substr(ISIC4,1,2) %in% c("26") ~ "C26",
-                            substr(ISIC4,1,2) %in% c("46") ~ "G46",
-                            substr(ISIC4,1,2) %in% c("58") ~ "J58",
-                            substr(ISIC4,1,2) %in% c("61") ~ "J61",
-                            substr(ISIC4,1,2) %in% c("95") ~ "S95")) %>%
-  group_by(REF_AREA,substr(ISIC4,1,2)) %>%
-  filter(any(level == 1)) %>%
-  group_by(REF_AREA,branch) %>%
-  summarise(VALUE_LVL2 = unique(sum(OBS_VALUE[level == 2],na.rm=T)),
-            VALUE_LVL1 = unique(sum(OBS_VALUE[level == 1],na.rm=T)),.groups = 'drop')
-
-country_shares = dataset.sdbs %>%
-  group_by(REF_AREA,branch) %>%
-  summarise(value = case_when(branch == "J61" ~ 1,
-                              T ~ VALUE_LVL2 / VALUE_LVL1),
-            .groups = 'drop')
-
-global_shares = dataset.sdbs %>%
-  group_by(branch) %>%
-  summarise(value = case_when(branch == "J61" ~ 1,
-                              T ~ sum(VALUE_LVL2,na.rm=T) / sum(VALUE_LVL1,na.rm=T)),
-            REF_AREA = 'WORLD',
-            .groups = 'drop') %>%
-  distinct()
-
-shares = rbind(country_shares,global_shares) %>%
-  mutate(REF_AREA = countrycode(REF_AREA,'iso3c','iso2c',nomatch = NULL))
-
-return(shares)
-}
-
-
-
-
-compute_macro_fpt_K = function(year,update,verbose = T)
-{
-  K = format_domestic_capital_tables(year)$CAPITAL_USE
-
-  dbWriteTable(m0_connexion_init(),
-               SQL('models.figaro_capital_use'),
-               K %>%
-                 as.data.frame() %>%
-                 rownames_to_column('resource_id') %>%
-                 pivot_longer(-1,names_to = 'use_id') %>%
-                 mutate(year = year,
-                        resource_country = sub("_.*", "", resource_id),
-                        resource_industry = sub("^[^_]+_", "", resource_id),
-                        use_country = sub("_.*", "", use_id),
-                        use_industry = sub("^[^_]+_", "", use_id)),
-               append = ifelse(year > 2010,TRUE,FALSE),
-               overwrite = ifelse(year > 2010,FALSE,TRUE))
+  K = build_capital_use(year)$CAPITAL_USE
 
   FIGARO = import_figaro_io_table(year,verbose)
 
@@ -94,85 +34,44 @@ compute_macro_fpt_K = function(year,update,verbose = T)
   A <- sweep(Z+K, 2, as.numeric(X), `/`)
   A[is.nan(A) | is.infinite(A)] <- 0
 
+  if(pattern == '26|46|58|61|62|63|95') # In the specific case of ICT, we refine the output according to the strategy described in the paper (ICT output importance at the 3-digit level).
+  {
+    ICT_SHARES = compute_ict_shares(year) %>% filter(REF_AREA %in% c('WORLD',
+                                                                     substr(colnames(FIGARO),1,2))) %>%
+      mutate(id = paste0(REF_AREA,"_",branch))
+
+    X = X %>%
+      as.data.frame() %>%
+      rownames_to_column('id') %>%
+      separate(id,c('country','industry'),sep = '_',extra = 'merge',remove = F) %>%
+      filter(grepl(paste0(unique(ICT_SHARES$branch),collapse = "|"),id)) %>%
+      mutate(SHARE = case_when(id %in% ICT_SHARES$id ~ ICT_SHARES$value[match(id,ICT_SHARES$id)],
+                               T ~ ICT_SHARES$value[match(paste0('WORLD_',industry),ICT_SHARES$id)]),
+             ADJUSTED_VALUE = production * SHARE) %>%
+      column_to_rownames('id') %>%
+      select(ADJUSTED_VALUE)
+
+  }
+
+  selected_industry_num <- grep(pattern, colnames(x = A))
+
+  sub_X = as.matrix(X[grep(pattern, rownames(X)),1, drop = FALSE])
+
   L <- solve(diag(nrow = nrow(A)) - A)
 
-  L_adj = sweep(L,2,diag(L),`/`)
+  sub_invL <- solve(L[selected_industry_num, selected_industry_num])
 
-  distributed_fpt = sweep(L_adj,1,B,`*`)
+  prescaling_sub_prod <- sub_invL %*% sub_X
 
-  #Economic aggregates
+  full_prod <- L[, selected_industry_num] %*% diag(x = as.numeric(prescaling_sub_prod))
 
-  P2 = colSums(Z,na.rm = T)
+  distributed_fpt <- (diag(x = as.numeric(B)) %*% full_prod) %>% `colnames<-`(colnames(A)[selected_industry_num]) %>% `rownames<-`(rownames(A))
 
-  P51c = colSums(K,na.rm = T)
+  total_fpt <- colSums(distributed_fpt, na.rm = TRUE) %>% `names<-`(colnames(A)[selected_industry_num])
 
-  B1G = X - P2
-
-  B1N = B1G - P51c
-
-  #Environmental footprints
-
-  GVA = E / B1G
-
-  NVA = E / B1N
-
-  CFC = case_when(P51c > 0 ~ colSums(distributed_fpt * K,na.rm=T) / P51c,
-                  T ~ 0) %>%
-  `names<-`(names(P51c))
-
-  IC = case_when(P2 > 0 ~ colSums(distributed_fpt * Z,na.rm=T) / P2,
-                  T ~ 0) %>%
-    `names<-`(names(P2))
-
-  PRD = colSums(distributed_fpt,na.rm=T)
-
-  results =
-    data.frame(row.names = names(PRD),
-               IC = as.numeric(IC),
-               CFC = as.numeric(CFC),
-               NVA = as.numeric(NVA),
-               GVA = as.numeric(GVA),
-               PRD = as.numeric(PRD)) %>%
-    rownames_to_column('id') %>%
-    pivot_longer(-1,names_to = 'aggregate',values_transform = list(value = ~round(.x, 1))) %>%
-    separate(id,c('country','industry'),sep = "_",remove = F,extra = 'merge') %>%
-    mutate(year = year)
-
-  return(results)
-
+  return(list(DISTRIBUTED = distributed_fpt,
+              BY_SECTOR = total_fpt,
+              TOTAL = sum(total_fpt)))
 }
 
-library(DBI) ; library(bir)
-
-for(i in 2010:2021)
-{
-
-  fpt = compute_macro_fpt_K(i)
-
-  dbWriteTable(m0_connexion_init(),
-               SQL('macrodata.macro_fpt_k'),
-               fpt,
-               append = ifelse(i > 2010,TRUE,FALSE),
-               overwrite = ifelse(i > 2010,FALSE,TRUE))
-
-  # test = dbGetQuery(m0_connexion_init(),"SELECT * FROM macrodata.macro_fpt_k WHERE country = 'FR'")
-
-}
-
-# A = sweep(Z, 2, as.numeric(X), `/`) ; A[is.nan(A) | is.infinite(A)] <- 0
-#
-# L = solve(diag(nrow = nrow(A)) - A)
-#
-# distributed_fpt = sweep(L,1,B,`*`) %>%
-#   colSums() %>%
-#   as.data.frame() %>%
-#   `colnames<-`('value') %>%
-#   rownames_to_column('id') %>%
-#   filter(grepl('FR',id)) %>%
-#   mutate(industry = sub("^[^_]+_", "", id)) %>%
-#   select(industry,value)
-#
-# write.table('C:/Users/Joris/OneDrive - La Société Nouvelle/Documents/Travaux statistiques/Travaux appliqués/F Charpentier - ICT4S/ARCEP ADEME/Empreinte DF 01-2026/FPT.csv',
-#             sep = ";",
-#             row.names = F,
-#             append = case_when())
+results = compute_footprint_K(2021)

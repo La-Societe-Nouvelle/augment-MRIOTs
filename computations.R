@@ -823,7 +823,7 @@ compilation_d_fixed_sales_assumption = function(year,multi_regional_capital_use_
                      CAPITAL_STOCK = STOCK_IXI_SCALED)))
 }
 
-format_domestic_capital_tables = function(year,classification = 'FIGARO',n_iter = 100,min_error = 1e-3,missing_option = 'Poisson',ras_option = 'CFC',verbose = T)
+build_capital_use = function(year,classification = 'FIGARO',n_iter = 100,min_error = 1e-3,missing_option = 'Poisson',ras_option = 'CFC',verbose = T)
 {
   figaro = import_figaro_io_table(year)
 
