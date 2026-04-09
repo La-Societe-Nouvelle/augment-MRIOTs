@@ -1,5 +1,11 @@
 x = c("tidyverse","curl","arrow","readxl","countrycode","httr2",'rvest','countrycode','httr','fixest','here','eurostat','stringr')
 
+sapply(x, function(pkg) {
+  if (!requireNamespace(pkg, quietly = TRUE)) {
+    install.packages(pkg)
+  }
+})
+
 lapply(x,library,character.only = T)
 
 files <- c(
