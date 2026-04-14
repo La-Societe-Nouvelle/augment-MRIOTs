@@ -362,3 +362,14 @@ import_ghg_data = function(year,figaro,verbose)
 
 
 }
+
+import_exchange_rate_oecd <- function(year)
+{
+
+  oecd_exch = read.csv(paste0("https://sdmx.oecd.org/public/rest/data/OECD.SDD.NAD,DSD_NAAG@DF_NAAG_IX,/A..EXC_A.XDC_USD.?startPeriod=",
+                              year,"&endPeriod=", year,
+                              "&dimensionAtObservation=AllDimensions&format=csvfile"))
+
+  return(oecd_exch)
+
+}

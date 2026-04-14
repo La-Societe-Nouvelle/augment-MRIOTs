@@ -703,7 +703,7 @@ domestic_capital_tables = function(figaro,complete_domestic_capital_stock,verbos
 
     capital_stock_list[[i]] = distributed_domestic_capital_stock
 
-    # depreciations_list[[i]] = distributed_domestic_depreciations_rate %>% as.matrix()
+    depreciations_list[[i]] = distributed_domestic_depreciations_rate %>% as.matrix()
 
     cfc_list[[i]] = t(Gp) %*% distributed_cfc
 
@@ -857,6 +857,9 @@ build_capital_use = function(year,classification = 'FIGARO',n_iter = 100,min_err
 
 compute_ict_shares = function(year)
 {
+
+  exchange_rate_oecd = import_exchange_rate_oecd(year)
+
   dataset.sdbs = read.csv(paste0("https://sdmx.oecd.org/public/rest/data/OECD.SDD.TPS,DSD_SDBSBSC_ISIC4@DF_SDBS_ISIC4,1.0/A..PROD.._T.?startPeriod=",year,#VAFC
                                  "&endPeriod=",year,"&dimensionAtObservation=AllDimensions&format=csvfilewithlabels")) %>%
     mutate(ISIC4 = substring(ACTIVITY,2)) %>%
@@ -885,6 +888,10 @@ compute_ict_shares = function(year)
               .groups = 'drop')
 
   global_shares = dataset.sdbs %>%
+    merge(exchange_rate_oecd %>% select(REF_AREA,OBS_VALUE),all.x = T) %>%
+    filter(!is.na(OBS_VALUE)) %>%
+    mutate(VALUE_LVL1 = VALUE_LVL1 * OBS_VALUE,
+           VALUE_LVL2 = VALUE_LVL2 * OBS_VALUE) %>%
     group_by(branch) %>%
     summarise(value = case_when(branch == "J61" ~ 1,
                                 T ~ sum(VALUE_LVL2,na.rm=T) / sum(VALUE_LVL1,na.rm=T)),
@@ -893,7 +900,8 @@ compute_ict_shares = function(year)
     distinct()
 
   shares = rbind(country_shares,global_shares) %>%
-    mutate(REF_AREA = countrycode(REF_AREA,'iso3c','iso2c',nomatch = NULL))
+    mutate(REF_AREA = countrycode(REF_AREA,'iso3c','iso2c',nomatch = NULL)) %>%
+    filter(is.numeric(value))
 
   return(shares)
 }
