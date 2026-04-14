@@ -1,6 +1,6 @@
 # Implementing a capital-use matrix in FIGARO: an environmental application to the ICT sector
 
-**Author:** Joris BLAIN\
+**Author:** Joris BLAIN
 
 ## 1. Overview
 
