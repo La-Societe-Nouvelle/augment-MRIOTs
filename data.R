@@ -162,22 +162,6 @@ import_oecd_fixed_asset = function(year,verbose = T)
            level = nchar(ASSET)) %>%
     ungroup()
 
-  #We delete aggregate when details are available in order to avoid double counting
-
-  # for(i in sort(unique(fixed_assets_sector$level),decreasing = T))
-  # {
-  #
-  #   asset_level = fixed_assets_sector %>% filter(level == i) %>% pull(ASSET) %>% unique()
-  #
-  #   asset_aggregate = substr(asset_level,1,nchar(asset_level)-1) %>% unique()
-  #
-  #   to_delete = fixed_assets_sector %>% group_by(industry) %>% filter(any(ASSET %in% asset_level)) %>% filter(ASSET %in% asset_aggregate) %>% ungroup() %>% distinct(industry,INSTR_ASSET)
-  #
-  #   print(to_delete)
-  #   # fixed_assets_sector = fixed_assets_sector %>% filter(!paste0(industry,INSTR_ASSET) %in% paste0(to_delete$industry,to_delete$INSTR_ASSET))
-  #
-  # }
-
    return(fixed_assets_sector)
 
 

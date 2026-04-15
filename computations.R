@@ -801,12 +801,10 @@ compilation_d_fixed_sales_assumption = function(year,multi_regional_capital_use_
 
     r = figaro_margins$rowwise / rowSums(K) ; r[!is.finite(r)] = 1
 
-    # K = diag(x = r) %*% K
     K = sweep(K, 1, r, `*`)
 
     s = figaro_margins$colwise / colSums(K) ; s[!is.finite(s)] = 1
 
-    # K = K %*% diag(x = s)
     K = sweep(K, 2, s, `*`)
 
     accuracy = max(abs(c(r,s)-1))
@@ -905,8 +903,6 @@ compute_ict_shares = function(year)
 
   return(shares)
 }
-
-# aggregate_cfc.klems(figaro,klems_data,year,verbose)
 
 #Derive Vk capital supply matrix. Supply of capital by capital industries
 #Prior = V supply matrix
