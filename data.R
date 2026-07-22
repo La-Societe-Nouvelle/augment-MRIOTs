@@ -16,7 +16,9 @@ import_figaro_io_table = function(year,verbose = T)
                           '2021', 'https://circabc.europa.eu/rest/download/57fd3555-51db-4f03-b765-3cb7fcfe3007',
                           '2022', 'https://circabc.europa.eu/rest/download/f1330ee5-2841-4f3a-949c-20f36d068714',
                           '2023', 'https://circabc.europa.eu/rest/download/836a0346-bdb5-4d8a-bbea-b3bd583a53c9',
-                          '2024', 'https://circabc.europa.eu/rest/download/8ac7da34-911e-4a91-ab1c-8aec1a574381'))
+                          '2024', 'https://circabc.europa.eu/rest/download/8ac7da34-911e-4a91-ab1c-8aec1a574381')) %>%
+    as.data.frame() %>%
+    `colnames<-`(c('year','link'))
 
 
   main.file = curl_fetch_memory(links %>% filter(year == !!year) %>% pull(link))
