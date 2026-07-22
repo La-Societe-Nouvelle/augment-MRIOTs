@@ -36,21 +36,22 @@ import_figaro_io_table = function(year,verbose = T)
 import_figaro_supply_table = function(year,verbose = T)
 {
 
-  links = data.frame(year = 2010:2023,
-                     link = c('https://circabc.europa.eu/rest/download/f3696c33-2805-4987-97d3-97ee1272d242',
-                              'https://circabc.europa.eu/rest/download/87ea271a-ed39-4f20-a9a9-4801d0b8f94b',
-                              'https://circabc.europa.eu/rest/download/ed13e4b8-1c7f-4dd2-90cd-b255700f9b7a',
-                              'https://circabc.europa.eu/rest/download/41578433-53b9-4df3-a302-ca181aa6bd18',
-                              'https://circabc.europa.eu/rest/download/baf38842-8436-4304-8427-67a6bbe43f98',
-                              'https://circabc.europa.eu/rest/download/cbda3980-8e14-4ae0-aad5-0b0e2d29f7cf',
-                              'https://circabc.europa.eu/rest/download/2c21a1a8-1707-4f5a-8490-baee61459f00',
-                              'https://circabc.europa.eu/rest/download/17e838f1-002b-485f-af28-c71df9c73734',
-                              'https://circabc.europa.eu/rest/download/e4f62e56-4750-455f-bafb-36a15328f2e8',
-                              'https://circabc.europa.eu/rest/download/2519eec0-356f-43c9-bb20-272b5421fe92',
-                              'https://circabc.europa.eu/rest/download/08130533-528f-46b9-9573-e416bbe3a359',
-                              'https://circabc.europa.eu/rest/download/1c336d72-12bd-45f6-b088-e27f0b1d3847',
-                              'https://circabc.europa.eu/rest/download/76ccc1ab-6e8b-42fa-bf42-d3ba7a3dbea2',
-                              'https://circabc.europa.eu/rest/download/53d49275-70fa-4f24-8d5a-5516208e590d'))
+  links = data.frame(year = 2010:2024,
+                     link = c('https://circabc.europa.eu/rest/download/5d2c05e4-f049-42ee-ab9d-79acde60e897',
+                              'https://circabc.europa.eu/rest/download/e8500dee-ea45-4469-b747-65be3a8c378e',
+                              'https://circabc.europa.eu/rest/download/bc2806eb-1472-4703-883c-04bdfb13cd04',
+                              'https://circabc.europa.eu/rest/download/20cb8d04-235c-4d7c-bef0-1e5e8c73abbc',
+                              'https://circabc.europa.eu/rest/download/23e10ca4-0825-420b-a30f-847cc55de28a',
+                              'https://circabc.europa.eu/rest/download/a9475586-1602-4108-b39d-f2a7670df4b7',
+                              'https://circabc.europa.eu/rest/download/044cf42a-f2ce-466f-a3e3-91752e878039',
+                              'https://circabc.europa.eu/rest/download/ea40cf1b-61d8-433d-b156-d58d4d30b359',
+                              'https://circabc.europa.eu/rest/download/8baeaa78-5ca5-4c96-8ed9-3c17bf1a61fb',
+                              'https://circabc.europa.eu/rest/download/34498144-a30f-4655-b434-73aa5373ad76',
+                              'https://circabc.europa.eu/rest/download/18377509-f0f7-4f3c-b230-ce83090fd122',
+                              'https://circabc.europa.eu/rest/download/8c17ee84-289a-4e24-8e29-05732dc61f97',
+                              'https://circabc.europa.eu/rest/download/c57663e9-da20-4637-9a12-fa80fe023371',
+                              'https://circabc.europa.eu/rest/download/42744021-74a4-4e8d-8574-c3b83c4f2a9f',
+                              'https://circabc.europa.eu/rest/download/45234789-1ad8-44b8-a3b4-9f8c1919b5d6'))
 
 
 
@@ -69,21 +70,22 @@ import_figaro_supply_table = function(year,verbose = T)
 import_figaro_use_table = function(year,verbose = T)
 {
 
-  links = data.frame(year = 2010:2023,
-                     link = c('https://circabc.europa.eu/rest/download/676e18a8-0d71-42b2-a02a-f5c7410a0f9c',
-                              'https://circabc.europa.eu/rest/download/6f278072-43a2-432c-8941-006bb58783d2',
-                              'https://circabc.europa.eu/rest/download/a74c8d7c-10ea-45fe-86f5-095739f3caf8',
-                              'https://circabc.europa.eu/rest/download/8ef90aea-3af2-45ab-9798-fc63bf40957d',
-                              'https://circabc.europa.eu/rest/download/28c880a6-804e-4658-a329-c8a53de6fa93',
-                              'https://circabc.europa.eu/rest/download/05bcbd7e-3c69-41ef-b39a-42c42aae2aed',
-                              'https://circabc.europa.eu/rest/download/82f057d7-2c86-46c9-88a6-9cde93bd3c94',
-                              'https://circabc.europa.eu/rest/download/f21820f2-1fab-40b6-81af-3cf0bbd25e7b',
-                              'https://circabc.europa.eu/rest/download/4c347027-f8b6-45ee-9760-b544c249fd33',
-                              'https://circabc.europa.eu/rest/download/21f555fd-bf43-41ca-a9fe-94078544262f',
-                              'https://circabc.europa.eu/rest/download/2920767b-92eb-4da7-88e8-cd9f96ee1649',
-                              'https://circabc.europa.eu/rest/download/b3b3e7a0-c1f5-4279-a941-17d6f45acd29',
-                              'https://circabc.europa.eu/rest/download/e0722dfb-42ef-4520-b365-d675559f2100',
-                              'https://circabc.europa.eu/rest/download/35a4d178-3285-46c8-befd-2e7f26803686'))
+  links = data.frame(year = 2010:2024,
+                     link = c('https://circabc.europa.eu/rest/download/db38347b-7e46-4955-af4d-98c3ba43ae8d',
+                              'https://circabc.europa.eu/rest/download/8cb37f01-c3ce-45a7-9dd3-278e5297a7e1',
+                              'https://circabc.europa.eu/rest/download/d95771ae-34a2-496b-8cdc-63248637e520',
+                              'https://circabc.europa.eu/rest/download/7b76a69b-6e34-42ec-8f50-b105f01c3a39',
+                              'https://circabc.europa.eu/rest/download/b5e4d84d-a3b0-486a-8634-40119435141a',
+                              'https://circabc.europa.eu/rest/download/534f1856-46cb-4860-a8b1-c6f4fb2ff43d',
+                              'https://circabc.europa.eu/rest/download/b9ef08dd-835d-4c97-bcaa-f4ec09f3c289',
+                              'https://circabc.europa.eu/rest/download/3c946634-83c7-4fa3-8a0d-7c4ebd36fb2f',
+                              'https://circabc.europa.eu/rest/download/428ebe8c-5358-48e1-a264-fd79460cefda',
+                              'https://circabc.europa.eu/rest/download/0e611ff2-4669-4efb-8d0a-b4ef9016f260',
+                              'https://circabc.europa.eu/rest/download/a0a606de-c1cc-4a50-b536-b8e5975a1db4',
+                              'https://circabc.europa.eu/rest/download/242f18be-5df2-4c90-b5a6-ee838990d464',
+                              'https://circabc.europa.eu/rest/download/6f0df065-c4e1-459b-9da3-3f89d2b9ebf5',
+                              'https://circabc.europa.eu/rest/download/f6c0570a-f0d3-44ee-8604-a352d9d67006',
+                              'https://circabc.europa.eu/rest/download/ad5952ca-53a9-4950-a4fd-b11f30540e80'))
 
 
 
