@@ -821,8 +821,9 @@ compilation_d_fixed_sales_assumption = function(year,multi_regional_capital_use_
                      CAPITAL_STOCK = STOCK_IXI_SCALED)))
 }
 
-build_capital_use = function(year,classification = 'FIGARO',n_iter = 100,min_error = 1e-3,missing_option = 'Poisson',ras_option = 'CFC',verbose = T)
+build_capital_use = function(year,classification = 'FIGARO',n_iter = 100,min_error = 1e-3,missing_option = 'Poisson',ras_option = 'CFC',format = 'ixi',verbose = T)
 {
+
   figaro = import_figaro_io_table(year)
 
   klems_data = get_capital_stock.klems(year) %>%
@@ -847,7 +848,11 @@ build_capital_use = function(year,classification = 'FIGARO',n_iter = 100,min_err
 
   multi_regional_capital_use_pxi = distribute_origin_suppliers(figaro,domestic_capital_tables_pxi,verbose)
 
+  if(format == 'pxi') return(multi_regional_capital_use_pxi)
+
   multi_regional_capital_use_ixi = compilation_d_fixed_sales_assumption(year,multi_regional_capital_use_pxi,figaro_margins,n_iter = n_iter,min_error = min_error-3,option = ras_option,verbose) #RAS CFC GFCF
+
+  if(format == 'both') return(list(pxi = multi_regional_capital_use_pxi,ixi = multi_regional_capital_use_ixi))
 
   return(multi_regional_capital_use_ixi)
 
